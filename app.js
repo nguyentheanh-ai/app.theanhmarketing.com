@@ -25,6 +25,7 @@ const state = {
   selectedCourseId: localStorage.getItem("ta.selectedCourseId") || "",
   courseDraftMode: "list",
   courseFocus: false,
+  courseReadMode: false,
   authUser: null,
   authReady: false,
   tasks: readStore("ta.tasks", seedTasks()),
@@ -403,7 +404,10 @@ function copyText(text, label = "Đã copy") {
 function setPage(page) {
   state.page = page;
   state.search = "";
-  if (page === "courses") state.courseDraftMode = "list";
+  if (page === "courses") {
+    state.courseDraftMode = "list";
+    state.courseFocus = false;
+  }
   searchInput.value = "";
   localStorage.setItem("ta.page", page);
   document.body.classList.remove("menu-open");
@@ -436,8 +440,8 @@ function render() {
   document.body.classList.toggle("course-focus", state.page === "courses" && state.courseFocus);
   renderNav();
   if (supabaseClient && state.authReady && !state.authUser) {
-    pageTitle.textContent = "Dang nhap";
-    searchInput.placeholder = "Dang nhap de mo dashboard...";
+    pageTitle.textContent = "Đăng nhập";
+    searchInput.placeholder = "Đăng nhập để mở dashboard...";
     app.innerHTML = renderAuth();
     bindAuthEvents();
     return;
@@ -472,21 +476,22 @@ function renderAuth() {
     <section class="page auth-page">
       <form class="card pad auth-card" id="authForm">
         <span class="eyebrow">${icon("lock")} Supabase Auth</span>
-        <h1 class="headline">Dang nhap dashboard</h1>
-        <p class="subhead">Dang nhap hoac tao tai khoan de luu Courses, Tasks, Prompts va Plan Content len Supabase.</p>
+        <h1 class="headline">Đăng nhập dashboard</h1>
+        <p class="subhead">Đăng nhập hoặc tạo tài khoản để lưu Courses, Tasks, Prompts và Plan Content lên Supabase.</p>
         <input id="authMode" type="hidden" value="login" />
         <div class="field">
           <label for="authEmail">Email</label>
           <input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com" />
         </div>
         <div class="field">
-          <label for="authPassword">Mat khau</label>
-          <input id="authPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="Toi thieu 6 ky tu" />
+          <label for="authPassword">Mật khẩu</label>
+          <input id="authPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="Tối thiểu 6 ký tự" />
         </div>
         <div class="course-form-actions">
-          <button class="primary-button" type="submit" id="authSubmit">${icon("login")} Dang nhap</button>
-          <button class="secondary-button" type="button" id="toggleAuthMode">${icon("person_add")} Tao tai khoan</button>
+          <button class="primary-button" type="submit" id="authSubmit">${icon("login")} Đăng nhập</button>
+          <button class="secondary-button" type="button" id="toggleAuthMode">${icon("person_add")} Tạo tài khoản</button>
         </div>
+        <button class="secondary-button auth-google" type="button" id="googleLogin">${icon("account_circle")} Đăng nhập bằng Google</button>
       </form>
     </section>
   `;
@@ -500,8 +505,15 @@ function bindAuthEvents() {
   toggle?.addEventListener("click", () => {
     const isLogin = modeInput.value === "login";
     modeInput.value = isLogin ? "register" : "login";
-    submit.innerHTML = `${icon(isLogin ? "person_add" : "login")} ${isLogin ? "Tao tai khoan" : "Dang nhap"}`;
-    toggle.innerHTML = `${icon(isLogin ? "login" : "person_add")} ${isLogin ? "Da co tai khoan" : "Tao tai khoan"}`;
+    submit.innerHTML = `${icon(isLogin ? "person_add" : "login")} ${isLogin ? "Tạo tài khoản" : "Đăng nhập"}`;
+    toggle.innerHTML = `${icon(isLogin ? "login" : "person_add")} ${isLogin ? "Đã có tài khoản" : "Tạo tài khoản"}`;
+  });
+  document.querySelector("#googleLogin")?.addEventListener("click", async () => {
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin + window.location.pathname },
+    });
+    if (error) showToast(error.message);
   });
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -515,7 +527,7 @@ function bindAuthEvents() {
       showToast(result.error.message);
       return;
     }
-    showToast(mode === "register" ? "Da tao tai khoan, hay kiem tra email neu Supabase yeu cau" : "Da dang nhap");
+    showToast(mode === "register" ? "Đã tạo tài khoản, hãy kiểm tra email nếu Supabase yêu cầu" : "Đã đăng nhập");
   });
 }
 
@@ -593,6 +605,7 @@ function renderCourses() {
   const course = selectedCourse();
   const filteredCourses = state.courses.filter((item) => matchesSearch(item.title, item.description, item.content, ...(item.toc || []).map((toc) => toc.title)));
   if (state.courseDraftMode === "create") return renderCourseCreateDetail();
+  if (state.courseDraftMode === "read" && course) return renderCourseRead(course);
   if (state.courseDraftMode === "edit" && course) return renderCourseDetail(course);
   return `
     <section class="page">
@@ -638,10 +651,41 @@ function courseNav(course) {
     <div class="course-nav-bar">
       <button class="secondary-button" type="button" data-course-list>${icon("arrow_back")} Danh sách khóa học</button>
       <div class="course-nav-actions">
+        ${course.id ? `<button class="secondary-button" type="button" data-toggle-course-read="${course.id}">${icon(state.courseDraftMode === "read" ? "edit" : "menu_book")} ${state.courseDraftMode === "read" ? "Sửa khóa học" : "Xem khóa học"}</button>` : ""}
         <button class="icon-button" type="button" data-nav-course="${prev?.id || ""}" ${prev ? "" : "disabled"} aria-label="Khóa trước">${icon("chevron_left")}</button>
         <button class="icon-button" type="button" data-nav-course="${next?.id || ""}" ${next ? "" : "disabled"} aria-label="Khóa sau">${icon("chevron_right")}</button>
       </div>
     </div>
+  `;
+}
+
+function renderCourseRead(course) {
+  const chapters = (course.toc || []).filter((item) => item.level === "chapter");
+  return `
+    <section class="page course-reader-page">
+      ${courseNav(course)}
+      <article class="course-reader">
+        <header class="course-reader-cover">
+          <span class="eyebrow">${icon("menu_book")} Chế độ đọc</span>
+          <h1>${escapeHtml(course.title)}</h1>
+          <p>${escapeHtml(course.description || "Chưa có mô tả khóa học.")}</p>
+        </header>
+        ${chapters.length ? `
+          <nav class="reader-chapters">
+            ${chapters.map((chapter, index) => `<a href="#chapter-${chapter.id}">${index + 1}. ${escapeHtml(chapter.title)}</a>`).join("")}
+          </nav>
+        ` : ""}
+        <div class="reader-content">
+          ${chapters.length ? chapters.map((chapter, index) => `
+            <section class="reader-chapter" id="chapter-${chapter.id}">
+              <span>Chương ${index + 1}</span>
+              <h2>${escapeHtml(chapter.title)}</h2>
+            </section>
+          `).join("") : ""}
+          <div class="reader-body">${course.content || `<p>Chưa có nội dung khóa học.</p>`}</div>
+        </div>
+      </article>
+    </section>
   `;
 }
 
@@ -745,28 +789,42 @@ function tocTitle(level) {
 }
 
 function showSelectionMenu(editor, event) {
+  event.preventDefault();
   const menu = document.querySelector("#selectionMenu");
   if (!menu) return;
   const selection = window.getSelection();
-  const text = selection?.toString().trim() || "";
-  if (!text || !editor.contains(selection.anchorNode) || !editor.contains(selection.focusNode)) {
+  const text = selectedTextInEditor(editor);
+  if (!text || !selection?.rangeCount) {
     menu.hidden = true;
     state.pendingSelectionText = "";
     return;
   }
   state.pendingSelectionText = text;
   const rect = selection.getRangeAt(0).getBoundingClientRect();
-  const left = Math.min(Math.max(rect.left + window.scrollX, 280), window.scrollX + window.innerWidth - 260);
-  const top = Math.max(rect.bottom + window.scrollY + 8, event.pageY + 8);
+  const left = Math.min(Math.max(rect.right + 8, 8), window.innerWidth - 170);
+  const top = Math.min(Math.max(rect.top, 8), window.innerHeight - 120);
   menu.style.left = `${left}px`;
   menu.style.top = `${top}px`;
   menu.hidden = false;
+}
+
+function selectedTextInEditor(editor) {
+  const selection = window.getSelection();
+  const text = selection?.toString().trim() || "";
+  if (!text || !selection?.anchorNode || !selection?.focusNode) return "";
+  if (!editor.contains(selection.anchorNode) || !editor.contains(selection.focusNode)) return "";
+  return text;
 }
 
 function hideSelectionMenu() {
   const menu = document.querySelector("#selectionMenu");
   if (menu) menu.hidden = true;
   state.pendingSelectionText = "";
+}
+
+function syncTocWithEditor(course, editor) {
+  const text = editor.innerText || "";
+  course.toc = (course.toc || []).filter((item) => item.source !== "selection" || text.includes(item.title));
 }
 
 function findCourse(courseId) {
@@ -944,6 +1002,10 @@ function renderAds() {
 
 function field(label, id, type, value) {
   return `<div class="field"><label for="${id}">${label}</label><input id="${id}" type="${type}" value="${escapeHtml(value)}" /></div>`;
+}
+
+function normalizeAdPart(value = "") {
+  return String(value).trim().replace(/\s+/g, "_").replace(/_+/g, "_");
 }
 
 function renderContentPlan() {
@@ -1148,7 +1210,7 @@ function bindViewEvents() {
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => setPage(button.dataset.page)));
   document.querySelector("[data-logout]")?.addEventListener("click", async () => {
     await supabaseClient?.auth.signOut();
-    showToast("Da dang xuat");
+    showToast("Đã đăng xuất");
   });
 
   document.querySelector("#newCourseButton")?.addEventListener("click", () => {
@@ -1163,6 +1225,12 @@ function bindViewEvents() {
   });
   document.querySelector("[data-course-list]")?.addEventListener("click", () => {
     state.courseDraftMode = "list";
+    state.courseFocus = false;
+    render();
+  });
+  document.querySelector("[data-toggle-course-read]")?.addEventListener("click", () => {
+    state.courseDraftMode = state.courseDraftMode === "read" ? "edit" : "read";
+    state.courseFocus = state.courseDraftMode === "read";
     render();
   });
   document.querySelectorAll("[data-nav-course]").forEach((button) => {
@@ -1231,14 +1299,14 @@ function bindViewEvents() {
     editor.addEventListener("input", () => {
       const course = findCourse(editor.dataset.courseContent);
       course.content = editor.innerHTML;
+      syncTocWithEditor(course, editor);
       writeStore("ta.courses", state.courses);
       hideSelectionMenu();
     });
-    editor.addEventListener("dblclick", (event) => {
-      window.setTimeout(() => showSelectionMenu(editor, event), 0);
-    });
+    editor.addEventListener("contextmenu", (event) => showSelectionMenu(editor, event));
     editor.addEventListener("click", () => hideSelectionMenu());
   });
+  document.querySelector("#selectionMenu")?.addEventListener("mousedown", (event) => event.preventDefault());
   document.querySelectorAll("[data-format]").forEach((button) => {
     button.addEventListener("click", () => {
       document.execCommand(button.dataset.format, false, null);
@@ -1265,9 +1333,9 @@ function bindViewEvents() {
     button.addEventListener("click", () => {
       const course = selectedCourse();
       const text = (state.pendingSelectionText || "").trim();
-      if (!course || !text) return showToast("Hãy bôi đen text trong nội dung trước");
+      if (!course || !text) return showToast("Bôi đen nội dung rồi bấm chuột phải ngay trên đoạn đã chọn");
       course.toc ||= [];
-      course.toc.push({ id: crypto.randomUUID(), level: button.dataset.markToc, title: text, parentId: "" });
+      course.toc.push({ id: crypto.randomUUID(), level: button.dataset.markToc, title: text, parentId: "", source: "selection" });
       state.pendingSelectionText = "";
       writeStore("ta.courses", state.courses);
       render();
@@ -1399,7 +1467,7 @@ function bindViewEvents() {
   const adsForm = document.querySelector("#adsForm");
   if (adsForm) {
     const preview = () => {
-      const value = [adsDate.value, adsCourse.value, adsContent.value, adsAudience.value].map((part) => part.trim()).filter(Boolean).join(" - ");
+      const value = [adsDate.value, adsCourse.value, adsContent.value, adsAudience.value].map(normalizeAdPart).filter(Boolean).join("_");
       document.querySelector("#adPreview").textContent = value || "Nhập đủ thông tin để tạo tên quảng cáo";
     };
     adsForm.addEventListener("input", preview);
