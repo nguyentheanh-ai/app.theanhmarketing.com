@@ -1,0 +1,51 @@
+GREEZHUB DASHBOARD - READ ME FIRST
+
+Thu muc du an:
+E:\AI Solo\Greezhub Dashboard
+
+Chay app:
+http://127.0.0.1:5173/
+
+Neu server chua chay, mo terminal trong thu muc du an va chay:
+npm run dev
+
+Trang thai hien tai:
+- App duoc dung bang HTML/CSS/JS thuan.
+- Giao dien theo style neo-brutalist tu bo Stitch.
+- Du lieu luu bang localStorage trong trinh duyet, va dong bo Supabase sau khi dang nhap.
+- Frontend chi duoc dung publishable key. Khong dua secret key/service role vao client code.
+
+Supabase:
+- Project URL: https://pppiqhkectojxbmhqcnx.supabase.co
+- File .env.local da co Project URL that va publishable key.
+- File .env.example la mau public-safe, khong chua secret.
+- File supabase-config.js la config runtime vi app hien tai la HTML/CSS/JS thuan, khong tu doc .env.local.
+- Khong dung gia tri bat dau bang sb_secret_ lam URL hoac key frontend.
+- Chay file supabase.sql trong Supabase SQL Editor de tao bang app_state va RLS.
+- App hien la static app, nen khong co Next server client/middleware that. Auth/protected dashboard duoc lam bang Supabase Auth public client va RLS.
+
+Tinh nang da co:
+- Analytics thong ke Courses, Prompts, Tasks, Plan Content.
+- Courses dang docs/outliner.
+- Menu Chương/Bài học/Mục chi hien sau khi double-click chon text trong noi dung khoa hoc.
+- Tao khoa hoc bang nut +.
+- Trong chi tiet khoa hoc: nhap dong, bam Enter de tao dong moi cung cap.
+- Nut thut vao se dua dong hien tai thanh con cua dong ngay phia tren, giong subtask that.
+- Nut lui ra se dua dong con ra ngoai cap cha.
+- Ads Tool lay ten khoa hoc truc tiep tu Courses.
+- Tasks co them/sua/xoa/copy. Task report/bao cao khong cho sua.
+- Prompts co loc, favorite, copy.
+- Plan Content va Calendar da duoc them.
+- Copy co fallback cho in-app browser.
+
+File chinh:
+- index.html: khung app.
+- styles.css: giao dien.
+- app.js: toan bo logic.
+
+Ghi chu cho phien sau:
+- Neu sua Courses, tap trung vao cac ham renderCourses, renderOutlineRow, indentNode, outdentNode trong app.js.
+- Neu sua Ads Tool, xem renderAds trong app.js.
+- Neu sua Plan Content / Calendar, xem renderContentPlan va renderCalendar.
+- Sau khi sua, kiem tra nhanh bang:
+node --check app.js

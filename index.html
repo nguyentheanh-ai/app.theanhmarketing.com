@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Thế Anh Marketing Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar" aria-label="Điều hướng chính">
+      <div class="brand">
+        <img class="brand__mark" src="./logo.svg" alt="" />
+        <div>
+          <h1>Thế Anh</h1>
+          <p>Marketing Admin</p>
+        </div>
+      </div>
+
+      <nav class="nav" id="nav"></nav>
+
+      <div class="sidebar__footer">
+        <button class="ghost-action" type="button" data-page="settings">
+          <span class="material-symbols-outlined">settings</span>
+          Cài đặt
+        </button>
+        <button class="ghost-action" type="button" data-page="support">
+          <span class="material-symbols-outlined">help</span>
+          Hỗ trợ
+        </button>
+      </div>
+    </aside>
+
+    <div class="shell">
+      <header class="topbar">
+        <button class="icon-button menu-button" id="menuButton" type="button" aria-label="Mở menu">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
+        <h2 id="pageTitle">Dashboard tổng quan</h2>
+        <div class="topbar__actions">
+          <label class="search">
+            <span class="material-symbols-outlined">search</span>
+            <input id="globalSearch" type="search" placeholder="Tìm kiếm dữ liệu..." />
+          </label>
+          <button class="icon-button" type="button" aria-label="Thông báo">
+            <span class="material-symbols-outlined">notifications</span>
+          </button>
+          <div class="avatar" aria-label="Tài khoản">TA</div>
+        </div>
+      </header>
+
+      <main class="main" id="app" tabindex="-1"></main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./supabase-config.js?v=20260516-safe-public-key"></script>
+    <script src="./app.js?v=20260516-course-final-word"></script>
+  </body>
+</html>
