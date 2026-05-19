@@ -2,5 +2,6 @@
 dev-server.log
 node_modules/
 verification-*.png
+.stitch-redesign/
 .DS_Store
 Thumbs.db
