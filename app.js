@@ -23,6 +23,7 @@ const state = {
   search: "",
   taskFilter: "today",
   promptFilter: "all",
+  zoom: Number(localStorage.getItem("ta.zoom") || 1.08),
   countdownTotal: Number(localStorage.getItem("ta.countdownTotal") || 25 * 60),
   countdownRemaining: Number(localStorage.getItem("ta.countdownRemaining") || 25 * 60),
   countdownRunning: false,
@@ -50,6 +51,7 @@ const nav = document.querySelector("#nav");
 const pageTitle = document.querySelector("#pageTitle");
 const searchInput = document.querySelector("#globalSearch");
 const toast = document.querySelector("#toast");
+const zoomValue = document.querySelector("#zoomValue");
 
 if (!state.selectedCourseId && state.courses[0]) state.selectedCourseId = state.courses[0].id;
 if (!state.selectedNoteId && state.notes[0]) state.selectedNoteId = state.notes[0].id;
@@ -417,6 +419,19 @@ function showToast(message) {
   toast.classList.add("is-visible");
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => toast.classList.remove("is-visible"), 1800);
+}
+
+function applyZoom() {
+  const value = Math.min(1.35, Math.max(0.9, Number(state.zoom || 1)));
+  state.zoom = value;
+  document.documentElement.style.setProperty("--ui-scale", value.toFixed(2));
+  if (zoomValue) zoomValue.textContent = `${Math.round(value * 100)}%`;
+  localStorage.setItem("ta.zoom", String(value));
+}
+
+function changeZoom(delta) {
+  state.zoom = Math.min(1.35, Math.max(0.9, Number(state.zoom || 1) + delta));
+  applyZoom();
 }
 
 function copyText(text, label = "Đã copy") {
@@ -1891,6 +1906,9 @@ document.querySelector("#menuButton").addEventListener("click", () => {
   document.body.classList.toggle("menu-open");
 });
 
+document.querySelector("#zoomIn")?.addEventListener("click", () => changeZoom(0.05));
+document.querySelector("#zoomOut")?.addEventListener("click", () => changeZoom(-0.05));
+
 function currentStopwatchElapsed() {
   return state.stopwatchRunning ? Date.now() - state.stopwatchStartedAt + state.stopwatchBase : state.stopwatchElapsed;
 }
@@ -1976,8 +1994,8 @@ function triggerAlert(message) {
 }
 
 window.setInterval(tickClock, 1000);
+applyZoom();
 updateClockDom();
-
 render();
 (async () => {
   if (await initSupabase()) {
