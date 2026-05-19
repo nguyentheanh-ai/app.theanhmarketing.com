@@ -3,6 +3,7 @@ const pages = [
   { id: "notes", label: "Notes", title: "Ghi chu", icon: "sticky_note_2" },
   { id: "content", label: "Plan Content", title: "Kế hoạch nội dung", icon: "edit_calendar" },
   { id: "calendar", label: "Calendar", title: "Lịch triển khai", icon: "calendar_month" },
+  { id: "clock", label: "Clock", title: "Dong ho", icon: "schedule" },
   { id: "ads", label: "Ads Tool", title: "Công cụ tạo tên Ads", icon: "campaign" },
   { id: "tasks", label: "Tasks", title: "Quản lý công việc", icon: "checklist" },
   { id: "prompts", label: "Prompts", title: "Thư viện Prompt AI", icon: "terminal" },
@@ -22,6 +23,13 @@ const state = {
   search: "",
   taskFilter: "today",
   promptFilter: "all",
+  countdownTotal: Number(localStorage.getItem("ta.countdownTotal") || 25 * 60),
+  countdownRemaining: Number(localStorage.getItem("ta.countdownRemaining") || 25 * 60),
+  countdownRunning: false,
+  stopwatchElapsed: Number(localStorage.getItem("ta.stopwatchElapsed") || 0),
+  stopwatchRunning: false,
+  stopwatchStartedAt: 0,
+  stopwatchBase: 0,
   selectedCourseId: localStorage.getItem("ta.selectedCourseId") || "",
   courseDraftMode: "list",
   courseFocus: false,
@@ -31,6 +39,7 @@ const state = {
   authReady: false,
   tasks: readStore("ta.tasks", seedTasks()),
   prompts: readStore("ta.prompts", seedPrompts()),
+  alarms: readStore("ta.alarms", []),
   courses: normalizeCourses(readStore("ta.courses", seedCourses())),
   notes: readStore("ta.notes", seedNotes()),
   contentPlans: readStore("ta.contentPlans", seedContentPlans()),
@@ -189,6 +198,7 @@ function collectRemoteState() {
   return {
     tasks: state.tasks,
     prompts: state.prompts,
+    alarms: state.alarms,
     courses: state.courses,
     notes: state.notes,
     contentPlans: state.contentPlans,
@@ -201,6 +211,7 @@ function applyRemoteState(payload) {
   remoteLoading = true;
   if (Array.isArray(payload.tasks)) state.tasks = payload.tasks;
   if (Array.isArray(payload.prompts)) state.prompts = payload.prompts;
+  if (Array.isArray(payload.alarms)) state.alarms = payload.alarms;
   if (Array.isArray(payload.courses)) state.courses = normalizeCourses(payload.courses);
   if (Array.isArray(payload.notes)) state.notes = payload.notes;
   if (Array.isArray(payload.contentPlans)) state.contentPlans = payload.contentPlans;
@@ -208,6 +219,7 @@ function applyRemoteState(payload) {
   if (!state.selectedCourseId && state.courses[0]) state.selectedCourseId = state.courses[0].id;
   localStorage.setItem("ta.tasks", JSON.stringify(state.tasks));
   localStorage.setItem("ta.prompts", JSON.stringify(state.prompts));
+  localStorage.setItem("ta.alarms", JSON.stringify(state.alarms));
   localStorage.setItem("ta.courses", JSON.stringify(state.courses));
   localStorage.setItem("ta.notes", JSON.stringify(state.notes));
   localStorage.setItem("ta.contentPlans", JSON.stringify(state.contentPlans));
@@ -386,6 +398,7 @@ function flattenChapterBody(nodes) {
 function writeAll() {
   writeStore("ta.tasks", state.tasks);
   writeStore("ta.prompts", state.prompts);
+  writeStore("ta.alarms", state.alarms);
   writeStore("ta.courses", state.courses);
   writeStore("ta.notes", state.notes);
   writeStore("ta.contentPlans", state.contentPlans);
@@ -477,6 +490,7 @@ function render() {
     notes: "Tìm ghi chú...",
     content: "Tìm kế hoạch content...",
     calendar: "Tìm lịch...",
+    clock: "Tim bao thuc...",
     ads: "Tìm trong công cụ...",
     tasks: "Tìm công việc...",
     prompts: "Tìm prompt...",
@@ -486,6 +500,7 @@ function render() {
     notes: renderNotes,
     content: renderContentPlan,
     calendar: renderCalendar,
+    clock: renderClock,
     ads: renderAds,
     tasks: renderTasks,
     prompts: renderPrompts,
@@ -1139,6 +1154,111 @@ function renderCalendar() {
   `;
 }
 
+function renderClock() {
+  const alarms = state.alarms.filter((alarm) => matchesSearch(alarm.time, alarm.label));
+  return `
+    <section class="page clock-page">
+      <div class="page-header">
+        <div>
+          <span class="eyebrow">${icon("schedule")} Time Center</span>
+          <h1 class="headline">Đồng hồ</h1>
+          <p class="subhead">Đồng hồ điện tử lớn, báo thức, đếm ngược và bấm giờ trong cùng một màn hình.</p>
+        </div>
+      </div>
+
+      <div class="clock-hero card">
+        <div>
+          <p class="clock-label">Giờ hiện tại</p>
+          <div class="digital-clock" id="digitalClock">--:--:--</div>
+          <p class="clock-date" id="clockDate">--</p>
+        </div>
+        <span class="material-symbols-outlined">schedule</span>
+      </div>
+
+      <div class="grid three-col clock-tools">
+        <article class="card pad clock-panel">
+          <div class="row-between">
+            <h3>Báo thức</h3>
+            <span class="pill">${state.alarms.length} alarms</span>
+          </div>
+          <form class="alarm-form" id="alarmForm">
+            <input id="alarmTime" type="time" required />
+            <input id="alarmLabel" type="text" placeholder="Tên báo thức" />
+            <button class="primary-button" type="submit">${icon("add_alert")} Thêm</button>
+          </form>
+          <div class="alarm-list">
+            ${alarms.length ? alarms.map(alarmCard).join("") : `<div class="empty compact-empty">Chưa có báo thức.</div>`}
+          </div>
+        </article>
+
+        <article class="card pad clock-panel">
+          <div class="row-between">
+            <h3>Đếm ngược</h3>
+            <span class="pill" id="countdownStatus">${state.countdownRunning ? "Running" : "Ready"}</span>
+          </div>
+          <div class="timer-display" id="countdownDisplay">${formatDuration(state.countdownRemaining)}</div>
+          <form class="timer-setup" id="countdownSetup">
+            <input id="countdownHours" type="number" min="0" max="99" placeholder="Giờ" />
+            <input id="countdownMinutes" type="number" min="0" max="59" placeholder="Phút" />
+            <input id="countdownSeconds" type="number" min="0" max="59" placeholder="Giây" />
+            <button class="secondary-button" type="submit">${icon("timer")} Set</button>
+          </form>
+          <div class="timer-actions">
+            <button class="primary-button" type="button" id="toggleCountdown">${icon(state.countdownRunning ? "pause" : "play_arrow")} ${state.countdownRunning ? "Tạm dừng" : "Bắt đầu"}</button>
+            <button class="secondary-button" type="button" id="resetCountdown">${icon("restart_alt")} Reset</button>
+          </div>
+        </article>
+
+        <article class="card pad clock-panel">
+          <div class="row-between">
+            <h3>Bấm giờ</h3>
+            <span class="pill" id="stopwatchStatus">${state.stopwatchRunning ? "Running" : "Ready"}</span>
+          </div>
+          <div class="timer-display" id="stopwatchDisplay">${formatStopwatch(state.stopwatchElapsed)}</div>
+          <div class="timer-actions stopwatch-actions">
+            <button class="primary-button" type="button" id="toggleStopwatch">${icon(state.stopwatchRunning ? "pause" : "play_arrow")} ${state.stopwatchRunning ? "Tạm dừng" : "Bắt đầu"}</button>
+            <button class="secondary-button" type="button" id="lapStopwatch">${icon("flag")} Lap</button>
+            <button class="secondary-button" type="button" id="resetStopwatch">${icon("restart_alt")} Reset</button>
+          </div>
+          <div class="lap-list" id="lapList"></div>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+function alarmCard(alarm) {
+  return `
+    <div class="alarm-item ${alarm.enabled ? "" : "is-off"}">
+      <label>
+        <input type="checkbox" data-toggle-alarm="${alarm.id}" ${alarm.enabled ? "checked" : ""} />
+        <span>
+          <strong>${escapeHtml(alarm.time)}</strong>
+          <small>${escapeHtml(alarm.label || "Báo thức")}</small>
+        </span>
+      </label>
+      <button class="icon-button danger-button" type="button" data-delete-alarm="${alarm.id}" aria-label="Xóa báo thức">${icon("delete")}</button>
+    </div>
+  `;
+}
+
+function formatDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return [h, m, s].map((part) => String(part).padStart(2, "0")).join(":");
+}
+
+function formatStopwatch(milliseconds) {
+  const total = Math.max(0, Math.floor(milliseconds));
+  const h = Math.floor(total / 3600000);
+  const m = Math.floor((total % 3600000) / 60000);
+  const s = Math.floor((total % 60000) / 1000);
+  const cs = Math.floor((total % 1000) / 10);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+}
+
 function renderTasks() {
   const filtered = state.tasks.filter((task) => {
     const statusOk = state.taskFilter === "all" || task.status === state.taskFilter || (state.taskFilter === "completed" && task.done);
@@ -1315,6 +1435,83 @@ function bindViewEvents() {
       writeStore("ta.notes", state.notes);
       render();
     });
+  });
+
+  document.querySelector("#alarmForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const time = document.querySelector("#alarmTime").value;
+    const label = document.querySelector("#alarmLabel").value.trim();
+    if (!time) return showToast("Chọn giờ báo thức trước");
+    state.alarms.push({ id: crypto.randomUUID(), time, label, enabled: true, lastTriggered: "" });
+    writeStore("ta.alarms", state.alarms);
+    render();
+  });
+  document.querySelectorAll("[data-toggle-alarm]").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      const alarm = state.alarms.find((item) => item.id === checkbox.dataset.toggleAlarm);
+      if (!alarm) return;
+      alarm.enabled = checkbox.checked;
+      alarm.lastTriggered = "";
+      writeStore("ta.alarms", state.alarms);
+      render();
+    });
+  });
+  document.querySelectorAll("[data-delete-alarm]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.alarms = state.alarms.filter((item) => item.id !== button.dataset.deleteAlarm);
+      writeStore("ta.alarms", state.alarms);
+      render();
+    });
+  });
+  document.querySelector("#countdownSetup")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const hours = Number(document.querySelector("#countdownHours").value || 0);
+    const minutes = Number(document.querySelector("#countdownMinutes").value || 0);
+    const seconds = Number(document.querySelector("#countdownSeconds").value || 0);
+    const total = Math.max(1, (hours * 3600) + (minutes * 60) + seconds);
+    state.countdownTotal = total;
+    state.countdownRemaining = total;
+    state.countdownRunning = false;
+    persistTimers();
+    updateClockDom();
+  });
+  document.querySelector("#toggleCountdown")?.addEventListener("click", () => {
+    if (state.countdownRemaining <= 0) state.countdownRemaining = state.countdownTotal || 60;
+    state.countdownRunning = !state.countdownRunning;
+    render();
+  });
+  document.querySelector("#resetCountdown")?.addEventListener("click", () => {
+    state.countdownRunning = false;
+    state.countdownRemaining = state.countdownTotal || 25 * 60;
+    persistTimers();
+    render();
+  });
+  document.querySelector("#toggleStopwatch")?.addEventListener("click", () => {
+    if (state.stopwatchRunning) {
+      state.stopwatchElapsed = Date.now() - state.stopwatchStartedAt + state.stopwatchBase;
+      state.stopwatchRunning = false;
+    } else {
+      state.stopwatchBase = state.stopwatchElapsed;
+      state.stopwatchStartedAt = Date.now();
+      state.stopwatchRunning = true;
+    }
+    persistTimers();
+    render();
+  });
+  document.querySelector("#resetStopwatch")?.addEventListener("click", () => {
+    state.stopwatchRunning = false;
+    state.stopwatchElapsed = 0;
+    state.stopwatchBase = 0;
+    persistTimers();
+    render();
+  });
+  document.querySelector("#lapStopwatch")?.addEventListener("click", () => {
+    const list = document.querySelector("#lapList");
+    if (!list) return;
+    const lap = document.createElement("div");
+    lap.className = "lap-item";
+    lap.textContent = formatStopwatch(currentStopwatchElapsed());
+    list.prepend(lap);
   });
 
   document.querySelector("#newCourseButton")?.addEventListener("click", () => {
@@ -1693,6 +1890,93 @@ searchInput.addEventListener("input", () => {
 document.querySelector("#menuButton").addEventListener("click", () => {
   document.body.classList.toggle("menu-open");
 });
+
+function currentStopwatchElapsed() {
+  return state.stopwatchRunning ? Date.now() - state.stopwatchStartedAt + state.stopwatchBase : state.stopwatchElapsed;
+}
+
+function persistTimers() {
+  localStorage.setItem("ta.countdownTotal", String(state.countdownTotal));
+  localStorage.setItem("ta.countdownRemaining", String(Math.max(0, Math.floor(state.countdownRemaining))));
+  localStorage.setItem("ta.stopwatchElapsed", String(Math.floor(state.stopwatchElapsed)));
+}
+
+function updateClockDom() {
+  const now = new Date();
+  const digital = document.querySelector("#digitalClock");
+  if (digital) digital.textContent = now.toLocaleTimeString("vi-VN", { hour12: false });
+  const date = document.querySelector("#clockDate");
+  if (date) date.textContent = now.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+
+  const countdown = document.querySelector("#countdownDisplay");
+  if (countdown) countdown.textContent = formatDuration(state.countdownRemaining);
+  const countdownStatus = document.querySelector("#countdownStatus");
+  if (countdownStatus) countdownStatus.textContent = state.countdownRunning ? "Running" : "Ready";
+
+  const stopwatch = document.querySelector("#stopwatchDisplay");
+  if (stopwatch) stopwatch.textContent = formatStopwatch(currentStopwatchElapsed());
+  const stopwatchStatus = document.querySelector("#stopwatchStatus");
+  if (stopwatchStatus) stopwatchStatus.textContent = state.stopwatchRunning ? "Running" : "Ready";
+}
+
+function tickClock() {
+  const before = Math.ceil(state.countdownRemaining);
+  if (state.countdownRunning) {
+    state.countdownRemaining = Math.max(0, state.countdownRemaining - 1);
+    if (before > 0 && state.countdownRemaining <= 0) {
+      state.countdownRunning = false;
+      persistTimers();
+      triggerAlert("Đếm ngược đã kết thúc");
+      render();
+      return;
+    }
+    persistTimers();
+  }
+
+  if (state.stopwatchRunning) {
+    localStorage.setItem("ta.stopwatchElapsed", String(Math.floor(currentStopwatchElapsed())));
+  }
+
+  checkAlarms();
+  updateClockDom();
+}
+
+function checkAlarms() {
+  if (!state.alarms.length) return;
+  const now = new Date();
+  const current = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const today = now.toISOString().slice(0, 10);
+  let changed = false;
+  state.alarms.forEach((alarm) => {
+    if (!alarm.enabled || alarm.time !== current || alarm.lastTriggered === today) return;
+    alarm.lastTriggered = today;
+    changed = true;
+    triggerAlert(alarm.label ? `Báo thức: ${alarm.label}` : `Báo thức ${alarm.time}`);
+  });
+  if (changed) writeStore("ta.alarms", state.alarms);
+}
+
+function triggerAlert(message) {
+  showToast(message);
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.2, context.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.8);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.85);
+  } catch {}
+}
+
+window.setInterval(tickClock, 1000);
+updateClockDom();
 
 render();
 (async () => {
