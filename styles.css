@@ -571,6 +571,100 @@ p {
   line-height: 1.5;
 }
 
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.prompt-actions .primary-button {
+  flex: 1;
+}
+
+.notes-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.sticky-note {
+  min-height: 260px;
+  padding: 16px;
+  border: 2px solid #2b2b2b;
+  border-radius: 4px;
+  box-shadow: 5px 6px 0 rgba(0, 0, 0, 0.18);
+  transform: rotate(-0.4deg);
+}
+
+.sticky-note:nth-child(even) {
+  transform: rotate(0.5deg);
+}
+
+.sticky-note.is-pinned {
+  border-top-width: 8px;
+}
+
+.note-yellow {
+  background: #fff08a;
+}
+
+.note-blue {
+  background: #bfe7ff;
+}
+
+.note-green {
+  background: #c8f7c5;
+}
+
+.note-pink {
+  background: #ffd0e1;
+}
+
+.note-white {
+  background: #fffdf5;
+}
+
+.note-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.note-toolbar select {
+  width: 82px;
+  min-height: 34px;
+  padding: 4px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.note-title-input,
+.note-body-input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  outline: none;
+}
+
+.note-title-input {
+  min-height: 38px;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.note-body-input {
+  min-height: 150px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
 .favorite {
   background: var(--surface);
   border: 0;

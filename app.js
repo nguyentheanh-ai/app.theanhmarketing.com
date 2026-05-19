@@ -1,6 +1,6 @@
 const pages = [
   { id: "dashboard", label: "Analytics", title: "Dashboard tổng quan", icon: "monitoring" },
-  { id: "courses", label: "Courses", title: "Quản lý khóa học", icon: "school" },
+  { id: "notes", label: "Notes", title: "Ghi chu", icon: "sticky_note_2" },
   { id: "content", label: "Plan Content", title: "Kế hoạch nội dung", icon: "edit_calendar" },
   { id: "calendar", label: "Calendar", title: "Lịch triển khai", icon: "calendar_month" },
   { id: "ads", label: "Ads Tool", title: "Công cụ tạo tên Ads", icon: "campaign" },
@@ -26,11 +26,13 @@ const state = {
   courseDraftMode: "list",
   courseFocus: false,
   courseReadMode: false,
+  selectedNoteId: localStorage.getItem("ta.selectedNoteId") || "",
   authUser: null,
   authReady: false,
   tasks: readStore("ta.tasks", seedTasks()),
   prompts: readStore("ta.prompts", seedPrompts()),
   courses: normalizeCourses(readStore("ta.courses", seedCourses())),
+  notes: readStore("ta.notes", seedNotes()),
   contentPlans: readStore("ta.contentPlans", seedContentPlans()),
 };
 
@@ -41,6 +43,8 @@ const searchInput = document.querySelector("#globalSearch");
 const toast = document.querySelector("#toast");
 
 if (!state.selectedCourseId && state.courses[0]) state.selectedCourseId = state.courses[0].id;
+if (!state.selectedNoteId && state.notes[0]) state.selectedNoteId = state.notes[0].id;
+if (!pages.some((page) => page.id === state.page)) state.page = "dashboard";
 
 const remoteStateTable = "app_state";
 let remoteStateId = "local-default";
@@ -102,7 +106,7 @@ function seedPrompts() {
       id: crypto.randomUUID(),
       title: "Viết angle quảng cáo Facebook",
       category: "Ads",
-      body: "Tạo 12 angle quảng cáo Facebook cho [khóa học], chia theo vấn đề, kết quả mong muốn, social proof và ưu đãi giới hạn.",
+      body: "Tạo 12 angle quảng cáo Facebook cho [sản phẩm/dịch vụ], chia theo vấn đề, kết quả mong muốn, social proof và ưu đãi giới hạn.",
       favorite: false,
     },
   ];
@@ -128,6 +132,25 @@ function seedCourses() {
           ],
         },
       ],
+    },
+  ];
+}
+
+function seedNotes() {
+  return [
+    {
+      id: crypto.randomUUID(),
+      title: "Ý tưởng chiến dịch",
+      body: "Viết nhanh các ý tưởng, hook, checklist hoặc việc cần nhớ ở đây.",
+      color: "yellow",
+      pinned: true,
+    },
+    {
+      id: crypto.randomUUID(),
+      title: "Việc cần xem lại",
+      body: "Kiểm tra prompt, lịch content và tên ads trước khi chạy.",
+      color: "blue",
+      pinned: false,
     },
   ];
 }
@@ -167,6 +190,7 @@ function collectRemoteState() {
     tasks: state.tasks,
     prompts: state.prompts,
     courses: state.courses,
+    notes: state.notes,
     contentPlans: state.contentPlans,
     selectedCourseId: state.selectedCourseId,
   };
@@ -178,12 +202,14 @@ function applyRemoteState(payload) {
   if (Array.isArray(payload.tasks)) state.tasks = payload.tasks;
   if (Array.isArray(payload.prompts)) state.prompts = payload.prompts;
   if (Array.isArray(payload.courses)) state.courses = normalizeCourses(payload.courses);
+  if (Array.isArray(payload.notes)) state.notes = payload.notes;
   if (Array.isArray(payload.contentPlans)) state.contentPlans = payload.contentPlans;
   if (typeof payload.selectedCourseId === "string") state.selectedCourseId = payload.selectedCourseId;
   if (!state.selectedCourseId && state.courses[0]) state.selectedCourseId = state.courses[0].id;
   localStorage.setItem("ta.tasks", JSON.stringify(state.tasks));
   localStorage.setItem("ta.prompts", JSON.stringify(state.prompts));
   localStorage.setItem("ta.courses", JSON.stringify(state.courses));
+  localStorage.setItem("ta.notes", JSON.stringify(state.notes));
   localStorage.setItem("ta.contentPlans", JSON.stringify(state.contentPlans));
   localStorage.setItem("ta.selectedCourseId", state.selectedCourseId);
   remoteLoading = false;
@@ -361,6 +387,7 @@ function writeAll() {
   writeStore("ta.tasks", state.tasks);
   writeStore("ta.prompts", state.prompts);
   writeStore("ta.courses", state.courses);
+  writeStore("ta.notes", state.notes);
   writeStore("ta.contentPlans", state.contentPlans);
 }
 
@@ -404,10 +431,7 @@ function copyText(text, label = "Đã copy") {
 function setPage(page) {
   state.page = page;
   state.search = "";
-  if (page === "courses") {
-    state.courseDraftMode = "list";
-    state.courseFocus = false;
-  }
+  state.courseFocus = false;
   searchInput.value = "";
   localStorage.setItem("ta.page", page);
   document.body.classList.remove("menu-open");
@@ -450,7 +474,7 @@ function render() {
   pageTitle.textContent = page.title;
   searchInput.placeholder = {
     dashboard: "Tìm số liệu...",
-    courses: "Tìm khóa học, chương, bài...",
+    notes: "Tìm ghi chú...",
     content: "Tìm kế hoạch content...",
     calendar: "Tìm lịch...",
     ads: "Tìm trong công cụ...",
@@ -459,7 +483,7 @@ function render() {
   }[state.page] || "Tìm kiếm...";
   app.innerHTML = {
     dashboard: renderDashboard,
-    courses: renderCourses,
+    notes: renderNotes,
     content: renderContentPlan,
     calendar: renderCalendar,
     ads: renderAds,
@@ -477,7 +501,7 @@ function renderAuth() {
       <form class="card pad auth-card" id="authForm">
         <span class="eyebrow">${icon("lock")} Supabase Auth</span>
         <h1 class="headline">Đăng nhập dashboard</h1>
-        <p class="subhead">Đăng nhập hoặc tạo tài khoản để lưu Courses, Tasks, Prompts và Plan Content lên Supabase.</p>
+        <p class="subhead">Đăng nhập hoặc tạo tài khoản để lưu Notes, Tasks, Prompts và Plan Content lên Supabase.</p>
         <input id="authMode" type="hidden" value="login" />
         <div class="field">
           <label for="authEmail">Email</label>
@@ -536,11 +560,8 @@ function flattenNodes(node) {
 }
 
 function courseStats() {
-  const toc = state.courses.flatMap((course) => course.toc || []);
-  const chapters = toc.filter((item) => item.level === "chapter");
-  const lessons = toc.filter((item) => item.level === "lesson");
-  const sections = toc.filter((item) => item.level === "section");
-  return { courses: state.courses.length, chapters: chapters.length, lessons: lessons.length, sections: sections.length, prompts: state.prompts.length };
+  const pinnedNotes = state.notes.filter((note) => note.pinned).length;
+  return { notes: state.notes.length, pinnedNotes, prompts: state.prompts.length, plans: state.contentPlans.length };
 }
 
 function renderDashboard() {
@@ -555,13 +576,13 @@ function renderDashboard() {
         <div>
           <span class="eyebrow">${icon("bolt")} Live Updates</span>
           <h1 class="headline">Dashboard <span class="highlight">Tổng Quan</span></h1>
-          <p class="subhead">Thống kê khóa học, prompt, content plan, calendar và task trong một dashboard.</p>
+          <p class="subhead">Thống kê ghi chú, prompt, content plan, calendar và task trong một dashboard.</p>
         </div>
-        <button class="primary-button" type="button" data-page="courses">${icon("add")} Thêm khóa học</button>
+        <button class="primary-button" type="button" data-page="notes">${icon("add")} Thêm ghi chú</button>
       </div>
       <div class="grid metrics">
-        ${metric("school", "Khóa học", stats.courses, `${stats.chapters} chương`, "pill")}
-        ${metric("library_books", "Tổng số chương", stats.chapters, "đang soạn", "pill")}
+        ${metric("sticky_note_2", "Ghi chú", stats.notes, `${stats.pinnedNotes} ghim`, "pill")}
+        ${metric("edit_calendar", "Plan Content", stats.plans, "đang lên lịch", "pill")}
         ${metric("terminal", "Prompt AI", stats.prompts, `${state.prompts.filter((item) => item.favorite).length} favorite`, "pill")}
         ${metric("speed", "Hoàn thành công việc", `${completion}%`, `${done}/${state.tasks.length}`, "pill")}
       </div>
@@ -579,9 +600,9 @@ function renderDashboard() {
         <aside class="card pad">
           <h3>Hoạt động gần đây</h3>
           <div class="list">
-            ${activity("school", `${stats.chapters} chương trong ${stats.courses} khóa`, "Bài/mục/đoạn được người dùng tự nhập trong từng chương.")}
+            ${activity("sticky_note_2", `${stats.notes} ghi chú đang lưu`, "Ghi nhanh ý tưởng, checklist và nhắc việc dạng sticky notes.")}
             ${activity("edit_calendar", `${state.contentPlans.length} kế hoạch content`, "Plan Content được đưa vào Calendar theo ngày.")}
-            ${activity("campaign", "Ads Tool đã liên kết khóa học", "Dropdown khóa học lấy từ Courses.")}
+            ${activity("campaign", "Ads Tool đã chuẩn hóa tên", "Các phần trong tên ads dùng dấu gạch dưới.")}
           </div>
         </aside>
       </div>
@@ -599,6 +620,43 @@ function activity(iconName, title, body) {
 
 function selectedCourse() {
   return state.courses.find((course) => course.id === state.selectedCourseId) || state.courses[0] || null;
+}
+
+function renderNotes() {
+  const filtered = [...state.notes]
+    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)))
+    .filter((note) => matchesSearch(note.title, note.body));
+  return `
+    <section class="page">
+      <div class="page-header">
+        <div>
+          <span class="eyebrow">${icon("sticky_note_2")} Sticky Notes</span>
+          <h1 class="headline">Ghi chú</h1>
+          <p class="subhead">Ghi nhanh ý tưởng, checklist và việc cần nhớ theo kiểu sticky notes.</p>
+        </div>
+        <button class="primary-button" id="newNoteButton" type="button">${icon("add")} Thêm ghi chú</button>
+      </div>
+      <div class="notes-board">
+        ${filtered.length ? filtered.map(noteCard).join("") : `<div class="empty">Chưa có ghi chú phù hợp.</div>`}
+      </div>
+    </section>
+  `;
+}
+
+function noteCard(note) {
+  return `
+    <article class="sticky-note note-${note.color || "yellow"} ${note.pinned ? "is-pinned" : ""}">
+      <div class="note-toolbar">
+        <button class="icon-button" type="button" data-pin-note="${note.id}" aria-label="Ghim">${icon(note.pinned ? "push_pin" : "keep")}</button>
+        <select data-note-color="${note.id}" aria-label="Màu ghi chú">
+          ${["yellow", "blue", "green", "pink", "white"].map((color) => `<option value="${color}" ${color === note.color ? "selected" : ""}>${color}</option>`).join("")}
+        </select>
+        <button class="icon-button danger-button" type="button" data-delete-note="${note.id}" aria-label="Xóa ghi chú">${icon("delete")}</button>
+      </div>
+      <input class="note-title-input" data-note-title="${note.id}" value="${escapeHtml(note.title)}" placeholder="Tiêu đề ghi chú" />
+      <textarea class="note-body-input" data-note-body="${note.id}" placeholder="Viết ghi chú...">${escapeHtml(note.body)}</textarea>
+    </article>
+  `;
 }
 
 function renderCourses() {
@@ -969,22 +1027,21 @@ function outdentNode(courseId, nodeId) {
 }
 
 function renderAds() {
-  const selected = selectedCourse();
   return `
     <section class="page">
       <div class="page-header">
         <div>
           <span class="eyebrow">${icon("campaign")} Ads Tool</span>
           <h1 class="headline">Công cụ <span class="highlight">Marketing</span></h1>
-          <p class="subhead">Tên khóa học được lấy trực tiếp từ Courses.</p>
+          <p class="subhead">Tao ten ads nhanh, cac phan duoc noi bang dau gach duoi.</p>
         </div>
       </div>
       <div class="grid two-col">
         <form class="card pad form-grid" id="adsForm">
           ${field("Ngày", "adsDate", "date", "2026-05-15")}
           <div class="field">
-            <label for="adsCourse">Khóa học</label>
-            <select id="adsCourse">${state.courses.map((course) => `<option value="${escapeHtml(course.title)}" ${course.id === selected?.id ? "selected" : ""}>${escapeHtml(course.title)}</option>`).join("")}</select>
+            <label for="adsCampaign">Chien dich</label>
+            <input id="adsCampaign" type="text" value="AI Marketing" />
           </div>
           ${field("Content", "adsContent", "text", "Video-Viral-01")}
           ${field("Tệp", "adsAudience", "text", "LAL-1-3")}
@@ -993,7 +1050,7 @@ function renderAds() {
         <aside class="card pad">
           <h3>Tên quảng cáo</h3>
           <div class="preview-box" id="adPreview"></div>
-          <p class="muted">Đổi khóa học bên Courses thì danh sách này tự cập nhật.</p>
+          <p class="muted">Vi du: ngay_chien_dich_content_tep.</p>
         </aside>
       </div>
     </section>
@@ -1005,7 +1062,7 @@ function field(label, id, type, value) {
 }
 
 function normalizeAdPart(value = "") {
-  return String(value).trim().replace(/\s+/g, "_").replace(/_+/g, "_");
+  return String(value).trim().replace(/[\s\-\/]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
 }
 
 function renderContentPlan() {
@@ -1015,17 +1072,16 @@ function renderContentPlan() {
         <div>
           <span class="eyebrow">${icon("edit_calendar")} Plan Content</span>
           <h1 class="headline">Kế hoạch <span class="highlight">Content</span></h1>
-          <p class="subhead">Lên topic theo ngày, kênh và khóa học. Calendar sẽ lấy dữ liệu từ đây.</p>
+          <p class="subhead">Lên topic theo ngày và kênh. Calendar sẽ lấy dữ liệu từ đây.</p>
         </div>
       </div>
       <div class="grid two-col">
-        <div class="list">${state.contentPlans.filter((plan) => matchesSearch(plan.topic, plan.channel, courseName(plan.courseId))).map(planCard).join("")}</div>
+        <div class="list">${state.contentPlans.filter((plan) => matchesSearch(plan.topic, plan.channel)).map(planCard).join("")}</div>
         <form class="card pad form-grid" id="contentPlanForm">
           <h3>Thêm kế hoạch</h3>
           ${field("Ngày", "planDate", "date", "2026-05-20")}
           ${field("Topic", "planTopic", "text", "")}
           <div class="field"><label for="planChannel">Kênh</label><select id="planChannel"><option>Facebook</option><option>TikTok</option><option>LinkedIn</option><option>Email</option><option>Blog</option></select></div>
-          <div class="field"><label for="planCourse">Khóa học</label><select id="planCourse"><option value="">Không gắn khóa</option>${state.courses.map((course) => `<option value="${course.id}">${escapeHtml(course.title)}</option>`).join("")}</select></div>
           <button class="primary-button" type="submit">${icon("add")} Thêm content</button>
         </form>
       </div>
@@ -1042,7 +1098,7 @@ function planCard(plan) {
           <h4>${escapeHtml(plan.topic)}</h4>
           <span class="tag">${escapeHtml(plan.channel)}</span>
         </div>
-        <p>${new Date(plan.date).toLocaleDateString("vi-VN")} · ${escapeHtml(courseName(plan.courseId) || "Không gắn khóa")}</p>
+        <p>${new Date(plan.date).toLocaleDateString("vi-VN")}</p>
         <div class="item-actions task-actions">
           <button class="icon-button" type="button" data-copy-plan="${plan.id}" aria-label="Copy">${icon("content_copy")}</button>
           <button class="icon-button danger-button" type="button" data-delete-plan="${plan.id}" aria-label="Xóa">${icon("delete")}</button>
@@ -1050,10 +1106,6 @@ function planCard(plan) {
       </div>
     </article>
   `;
-}
-
-function courseName(courseId) {
-  return state.courses.find((course) => course.id === courseId)?.title || "";
 }
 
 function renderCalendar() {
@@ -1072,7 +1124,7 @@ function renderCalendar() {
           <article class="card pad calendar-day">
             <span class="pill">${new Date(plan.date).toLocaleDateString("vi-VN")}</span>
             <h3>${escapeHtml(plan.topic)}</h3>
-            <p>${escapeHtml(plan.channel)} · ${escapeHtml(courseName(plan.courseId) || "Content chung")}</p>
+            <p>${escapeHtml(plan.channel)}</p>
           </article>
         `).join("")}
         ${state.tasks.map((task) => `
@@ -1196,7 +1248,10 @@ function promptCard(prompt) {
       </div>
       <input class="prompt-title-input" data-prompt-title="${prompt.id}" value="${escapeHtml(prompt.title)}" />
       <textarea class="prompt-body-input" data-prompt-body="${prompt.id}">${escapeHtml(prompt.body)}</textarea>
-      <button class="primary-button" type="button" data-copy-prompt="${prompt.id}">${icon("content_copy")} Copy Prompt</button>
+      <div class="prompt-actions">
+        <button class="primary-button" type="button" data-copy-prompt="${prompt.id}">${icon("content_copy")} Copy Prompt</button>
+        <button class="icon-button danger-button" type="button" data-delete-prompt="${prompt.id}" aria-label="Xóa prompt">${icon("delete")}</button>
+      </div>
     </article>
   `;
 }
@@ -1211,6 +1266,55 @@ function bindViewEvents() {
   document.querySelector("[data-logout]")?.addEventListener("click", async () => {
     await supabaseClient?.auth.signOut();
     showToast("Đã đăng xuất");
+  });
+
+  document.querySelector("#newNoteButton")?.addEventListener("click", () => {
+    const colors = ["yellow", "blue", "green", "pink"];
+    state.notes.unshift({
+      id: crypto.randomUUID(),
+      title: "Ghi chú mới",
+      body: "",
+      color: colors[state.notes.length % colors.length],
+      pinned: false,
+    });
+    writeStore("ta.notes", state.notes);
+    render();
+  });
+  document.querySelectorAll("[data-note-title], [data-note-body]").forEach((field) => {
+    field.addEventListener("input", () => {
+      const id = field.dataset.noteTitle || field.dataset.noteBody;
+      const note = state.notes.find((item) => item.id === id);
+      if (!note) return;
+      if (field.dataset.noteTitle) note.title = field.value;
+      if (field.dataset.noteBody) note.body = field.value;
+      writeStore("ta.notes", state.notes);
+    });
+  });
+  document.querySelectorAll("[data-note-color]").forEach((select) => {
+    select.addEventListener("change", () => {
+      const note = state.notes.find((item) => item.id === select.dataset.noteColor);
+      if (!note) return;
+      note.color = select.value;
+      writeStore("ta.notes", state.notes);
+      render();
+    });
+  });
+  document.querySelectorAll("[data-pin-note]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const note = state.notes.find((item) => item.id === button.dataset.pinNote);
+      if (!note) return;
+      note.pinned = !note.pinned;
+      writeStore("ta.notes", state.notes);
+      render();
+    });
+  });
+  document.querySelectorAll("[data-delete-note]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.notes = state.notes.filter((item) => item.id !== button.dataset.deleteNote);
+      state.selectedNoteId = state.notes[0]?.id || "";
+      writeStore("ta.notes", state.notes);
+      render();
+    });
   });
 
   document.querySelector("#newCourseButton")?.addEventListener("click", () => {
@@ -1467,7 +1571,12 @@ function bindViewEvents() {
   const adsForm = document.querySelector("#adsForm");
   if (adsForm) {
     const preview = () => {
-      const value = [adsDate.value, adsCourse.value, adsContent.value, adsAudience.value].map(normalizeAdPart).filter(Boolean).join("_");
+      const value = [
+        document.querySelector("#adsDate").value,
+        document.querySelector("#adsCampaign").value,
+        document.querySelector("#adsContent").value,
+        document.querySelector("#adsAudience").value,
+      ].map(normalizeAdPart).filter(Boolean).join("_");
       document.querySelector("#adPreview").textContent = value || "Nhập đủ thông tin để tạo tên quảng cáo";
     };
     adsForm.addEventListener("input", preview);
@@ -1484,7 +1593,6 @@ function bindViewEvents() {
       date: document.querySelector("#planDate").value,
       channel: document.querySelector("#planChannel").value,
       topic,
-      courseId: document.querySelector("#planCourse").value,
       status: "Draft",
     });
     writeStore("ta.contentPlans", state.contentPlans);
@@ -1569,6 +1677,11 @@ function bindViewEvents() {
   document.querySelectorAll("[data-copy-prompt]").forEach((button) => button.addEventListener("click", () => {
     const prompt = state.prompts.find((item) => item.id === button.dataset.copyPrompt);
     copyText(prompt.body, "Đã copy prompt");
+  }));
+  document.querySelectorAll("[data-delete-prompt]").forEach((button) => button.addEventListener("click", () => {
+    state.prompts = state.prompts.filter((item) => item.id !== button.dataset.deletePrompt);
+    writeStore("ta.prompts", state.prompts);
+    render();
   }));
 }
 
