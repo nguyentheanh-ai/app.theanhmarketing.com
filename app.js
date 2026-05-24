@@ -20,6 +20,26 @@ const levelLabels = {
   item: "Mục a/b/c hoặc đoạn",
 };
 
+let knowledgeDocumentsChanged = false;
+
+function knowledgeSeedDocuments() {
+  return Array.isArray(window.TA_KNOWLEDGE_DOCUMENTS) ? window.TA_KNOWLEDGE_DOCUMENTS : [];
+}
+
+function mergeKnowledgeDocuments(documents = []) {
+  const merged = [...(documents || [])];
+  const existing = new Set(merged.map((documentItem) => documentItem.id || documentItem.title));
+  knowledgeSeedDocuments().forEach((documentItem) => {
+    const key = documentItem.id || documentItem.title;
+    if (!existing.has(key)) {
+      merged.push({ ...documentItem });
+      existing.add(key);
+      knowledgeDocumentsChanged = true;
+    }
+  });
+  return merged;
+}
+
 const state = {
   page: localStorage.getItem("ta.page") || "dashboard",
   search: "",
@@ -49,7 +69,7 @@ const state = {
   alarms: readStore("ta.alarms", []),
   courses: normalizeCourses(readStore("ta.courses", seedCourses())),
   notes: readStore("ta.notes", seedNotes()),
-  documents: readStore("ta.documents", seedDocuments()),
+  documents: mergeKnowledgeDocuments(readStore("ta.documents", seedDocuments())),
   ideas: readStore("ta.ideas", seedIdeas()),
   contentPlans: readStore("ta.contentPlans", seedContentPlans()),
 };
@@ -265,7 +285,7 @@ function applyRemoteState(payload) {
   if (Array.isArray(payload.alarms)) state.alarms = payload.alarms;
   if (Array.isArray(payload.courses)) state.courses = normalizeCourses(payload.courses);
   if (Array.isArray(payload.notes)) state.notes = payload.notes;
-  if (Array.isArray(payload.documents)) state.documents = payload.documents;
+  if (Array.isArray(payload.documents)) state.documents = mergeKnowledgeDocuments(payload.documents);
   if (Array.isArray(payload.ideas)) state.ideas = payload.ideas;
   if (Array.isArray(payload.contentPlans)) state.contentPlans = payload.contentPlans;
   if (typeof payload.selectedCourseId === "string") state.selectedCourseId = payload.selectedCourseId;
@@ -333,7 +353,9 @@ async function loadRemoteState() {
   }
 
   remoteReady = true;
+  knowledgeDocumentsChanged = false;
   if (data?.payload && applyRemoteState(data.payload)) {
+    if (knowledgeDocumentsChanged) saveRemoteState();
     render();
     return;
   }

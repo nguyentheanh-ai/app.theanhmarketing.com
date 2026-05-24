@@ -5,11 +5,12 @@ import test from "node:test";
 const app = readFileSync(new URL("../app.js", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const knowledgeSeeds = readFileSync(new URL("../knowledge-seeds.js", import.meta.url), "utf8");
 
 test("documents and ideas are first-class app pages", () => {
   assert.match(app, /id:\s*"documents"/);
   assert.match(app, /id:\s*"ideas"/);
-  assert.match(app, /documents:\s*readStore\("ta\.documents"/);
+  assert.match(app, /documents:\s*mergeKnowledgeDocuments\(readStore\("ta\.documents"/);
   assert.match(app, /ideas:\s*readStore\("ta\.ideas"/);
   assert.match(app, /renderDocuments/);
   assert.match(app, /renderIdeas/);
@@ -82,4 +83,15 @@ test("document content can expand into full-page focus mode", () => {
   assert.match(styles, /body\.document-focus \.sidebar/);
   assert.match(styles, /\.document-focus-page/);
   assert.match(styles, /\.document-focus-editor/);
+});
+
+test("AI Master knowledge documents are bundled into the document library", () => {
+  assert.match(html, /knowledge-seeds\.js/);
+  assert.match(app, /TA_KNOWLEDGE_DOCUMENTS/);
+  assert.match(app, /mergeKnowledgeDocuments/);
+  assert.match(app, /knowledgeDocumentsChanged/);
+  assert.match(knowledgeSeeds, /Master Plan - Hệ phễu khóa học AI Growth/);
+  assert.match(knowledgeSeeds, /Outline khóa học theo 3 tầng phễu/);
+  assert.match(knowledgeSeeds, /Spec landing page - AI Master x10/);
+  assert.match(knowledgeSeeds, /Outline quay khóa - AI Master x10 Hiệu Suất/);
 });
