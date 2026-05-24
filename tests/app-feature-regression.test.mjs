@@ -5,6 +5,8 @@ import test from "node:test";
 const app = readFileSync(new URL("../app.js", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const server = readFileSync(new URL("../dev-server.js", import.meta.url), "utf8");
+const vercelConfig = readFileSync(new URL("../vercel.json", import.meta.url), "utf8");
 const knowledgeSeeds = readFileSync(new URL("../knowledge-seeds.js", import.meta.url), "utf8");
 
 test("documents and ideas are first-class app pages", () => {
@@ -20,11 +22,27 @@ test("navigation is organized into module spaces with calendar as home", () => {
   assert.match(app, /moduleSpaces/);
   assert.match(app, /Không gian nội dung/);
   assert.match(app, /Không gian vận hành/);
+  assert.match(app, /path:\s*"\/noi-dung"/);
+  assert.match(app, /path:\s*"\/van-hanh"/);
+  assert.match(app, /pageFromPath/);
+  assert.match(app, /routeForPage/);
+  assert.match(app, /history\.pushState/);
+  assert.match(app, /popstate/);
+  assert.match(app, /renderModuleSpace/);
   assert.match(app, /id:\s*"calendar",\s*label:\s*"Home"/);
   assert.match(app, /home-page-link/);
   assert.match(app, /nav-section/);
+  assert.match(app, /pageId:\s*"noi-dung"/);
+  assert.match(app, /pageId:\s*"van-hanh"/);
+  assert.match(app, /data-page="\$\{space\.pageId\}"/);
   assert.match(styles, /\.home-page-link/);
   assert.match(styles, /\.nav-section/);
+  assert.match(styles, /\.module-space-page/);
+  assert.match(styles, /\.module-launch-grid/);
+  assert.match(server, /index\.html/);
+  assert.match(server, /fallback/);
+  assert.match(vercelConfig, /rewrites/);
+  assert.match(vercelConfig, /index\.html/);
 });
 
 test("document modules open inline and support rich editing", () => {

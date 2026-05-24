@@ -27,6 +27,19 @@ const server = http.createServer((request, response) => {
   }
 
   fs.readFile(filePath, (error, content) => {
+    const fallback = !path.extname(filePath);
+    if (error && fallback) {
+      fs.readFile(path.join(root, "index.html"), (indexError, indexContent) => {
+        if (indexError) {
+          response.writeHead(404);
+          response.end("Not found");
+          return;
+        }
+        response.writeHead(200, { "Content-Type": types[".html"] });
+        response.end(indexContent);
+      });
+      return;
+    }
     if (error) {
       response.writeHead(404);
       response.end("Not found");

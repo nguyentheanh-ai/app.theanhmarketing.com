@@ -1,19 +1,21 @@
 const pages = [
-  { id: "calendar", label: "Home", title: "Calendar", icon: "home", space: "home" },
-  { id: "documents", label: "Tài liệu", title: "Tài liệu", icon: "folder_copy", space: "content" },
-  { id: "notes", label: "Notes", title: "Ghi chu", icon: "sticky_note_2", space: "content" },
-  { id: "ideas", label: "Idea", title: "Idea", icon: "lightbulb", space: "content" },
-  { id: "prompts", label: "Prompt", title: "Thư viện Prompt AI", icon: "terminal", space: "content" },
-  { id: "content", label: "Plan Content", title: "Kế hoạch nội dung", icon: "edit_calendar", space: "operations" },
-  { id: "clock", label: "Clock", title: "Dong ho", icon: "schedule", space: "operations" },
-  { id: "dashboard", label: "Analytics", title: "Dashboard tổng quan", icon: "monitoring", space: "operations" },
-  { id: "ads", label: "Ads Tool", title: "Công cụ tạo tên Ads", icon: "campaign", space: "operations" },
-  { id: "tasks", label: "Tasks", title: "Quản lý công việc", icon: "checklist", space: "operations" },
+  { id: "calendar", label: "Home", title: "Calendar", icon: "home", space: "home", path: "/" },
+  { id: "noi-dung", label: "Không gian nội dung", title: "Không gian nội dung", icon: "inventory_2", space: "content", path: "/noi-dung", isSpace: true },
+  { id: "van-hanh", label: "Không gian vận hành", title: "Không gian vận hành", icon: "hub", space: "operations", path: "/van-hanh", isSpace: true },
+  { id: "documents", label: "Tài liệu", title: "Tài liệu", icon: "folder_copy", space: "content", path: "/noi-dung/tai-lieu" },
+  { id: "notes", label: "Notes", title: "Ghi chu", icon: "sticky_note_2", space: "content", path: "/noi-dung/notes" },
+  { id: "ideas", label: "Idea", title: "Idea", icon: "lightbulb", space: "content", path: "/noi-dung/idea" },
+  { id: "prompts", label: "Prompt", title: "Thư viện Prompt AI", icon: "terminal", space: "content", path: "/noi-dung/prompt" },
+  { id: "content", label: "Plan Content", title: "Kế hoạch nội dung", icon: "edit_calendar", space: "operations", path: "/van-hanh/plan-content" },
+  { id: "clock", label: "Clock", title: "Dong ho", icon: "schedule", space: "operations", path: "/van-hanh/clock" },
+  { id: "dashboard", label: "Analytics", title: "Dashboard tổng quan", icon: "monitoring", space: "operations", path: "/van-hanh/analytics" },
+  { id: "ads", label: "Ads Tool", title: "Công cụ tạo tên Ads", icon: "campaign", space: "operations", path: "/van-hanh/ads-tool" },
+  { id: "tasks", label: "Tasks", title: "Quản lý công việc", icon: "checklist", space: "operations", path: "/van-hanh/tasks" },
 ];
 
 const moduleSpaces = [
-  { id: "content", label: "Không gian nội dung", pages: ["documents", "notes", "ideas", "prompts"] },
-  { id: "operations", label: "Không gian vận hành", pages: ["content", "clock", "dashboard", "ads", "tasks"] },
+  { id: "content", pageId: "noi-dung", label: "Không gian nội dung", path: "/noi-dung", pages: ["documents", "notes", "ideas", "prompts"] },
+  { id: "operations", pageId: "van-hanh", label: "Không gian vận hành", path: "/van-hanh", pages: ["content", "clock", "dashboard", "ads", "tasks"] },
 ];
 
 const levelOrder = ["chapter", "lesson", "section", "item"];
@@ -26,6 +28,15 @@ const levelLabels = {
 };
 
 let knowledgeDocumentsChanged = false;
+
+function pageFromPath(pathname = window.location.pathname) {
+  const normalized = pathname.replace(/\/+$/, "") || "/";
+  return pages.find((page) => page.path === normalized)?.id || "";
+}
+
+function routeForPage(pageId) {
+  return pages.find((page) => page.id === pageId)?.path || "/";
+}
 
 function knowledgeSeedDocuments() {
   return Array.isArray(window.TA_KNOWLEDGE_DOCUMENTS) ? window.TA_KNOWLEDGE_DOCUMENTS : [];
@@ -46,7 +57,7 @@ function mergeKnowledgeDocuments(documents = []) {
 }
 
 const state = {
-  page: localStorage.getItem("ta.page") || "calendar",
+  page: pageFromPath() || localStorage.getItem("ta.page") || "calendar",
   search: "",
   taskFilter: "today",
   promptFilter: "all",
@@ -91,7 +102,7 @@ const zoomValue = document.querySelector("#zoomValue");
 
 if (!state.selectedCourseId && state.courses[0]) state.selectedCourseId = state.courses[0].id;
 if (!state.selectedNoteId && state.notes[0]) state.selectedNoteId = state.notes[0].id;
-if (!pages.some((page) => page.id === state.page)) state.page = "dashboard";
+if (!pages.some((page) => page.id === state.page)) state.page = "calendar";
 
 const remoteStateTable = "app_state";
 let remoteStateId = "local-default";
@@ -549,12 +560,16 @@ function copyText(text, label = "Đã copy") {
   }
 }
 
-function setPage(page) {
+function setPage(page, options = {}) {
   state.page = page;
   state.search = "";
   state.courseFocus = false;
   searchInput.value = "";
   localStorage.setItem("ta.page", page);
+  const nextPath = routeForPage(page);
+  if (options.push !== false && window.location.pathname !== nextPath) {
+    history.pushState({ page }, "", nextPath);
+  }
   document.body.classList.remove("menu-open");
   render();
 }
@@ -575,7 +590,10 @@ function renderNav() {
     </button>
     ${moduleSpaces.map((space) => `
       <div class="nav-section" data-module-space="${space.id}">
-        <span>${space.label}</span>
+        <button class="nav-space-link ${space.pageId === state.page ? "is-active" : ""}" type="button" data-page="${space.pageId}">
+          ${icon(pageById.get(space.pageId)?.icon || "folder")}
+          ${space.label}
+        </button>
         ${space.pages.map((pageId) => {
           const page = pageById.get(pageId);
           if (!page) return "";
@@ -613,6 +631,8 @@ function render() {
   pageTitle.textContent = page.title;
   searchInput.placeholder = {
     dashboard: "Tìm số liệu...",
+    "noi-dung": "Tìm trong không gian nội dung...",
+    "van-hanh": "Tìm trong không gian vận hành...",
     notes: "Tìm ghi chú...",
     documents: "Tìm tài liệu...",
     ideas: "Tìm idea...",
@@ -624,6 +644,8 @@ function render() {
     prompts: "Tìm prompt...",
   }[state.page] || "Tìm kiếm...";
   app.innerHTML = {
+    "noi-dung": () => renderModuleSpace("content"),
+    "van-hanh": () => renderModuleSpace("operations"),
     dashboard: renderDashboard,
     notes: renderNotes,
     documents: renderDocuments,
@@ -829,6 +851,36 @@ function metric(iconName, label, value, trend, trendClass) {
 
 function activity(iconName, title, body) {
   return `<div class="list-item">${icon(iconName)}<div><h4>${title}</h4><p>${body}</p></div></div>`;
+}
+
+function renderModuleSpace(spaceId) {
+  const space = moduleSpaces.find((item) => item.id === spaceId);
+  if (!space) return renderCalendar();
+  const pageById = new Map(pages.map((page) => [page.id, page]));
+  return `
+    <section class="page module-space-page">
+      <div class="page-header">
+        <div>
+          <span class="eyebrow">${icon(pageById.get(space.pageId)?.icon || "inventory_2")} Module Space</span>
+          <h1 class="headline">${space.label}</h1>
+          <p class="subhead">Chọn một module để mở khu vực làm việc chuyên sâu.</p>
+        </div>
+      </div>
+      <div class="module-launch-grid">
+        ${space.pages.map((pageId) => {
+          const page = pageById.get(pageId);
+          if (!page) return "";
+          return `
+            <button class="module-launch-card" type="button" data-page="${page.id}">
+              ${icon(page.icon)}
+              <strong>${page.label}</strong>
+              <span>${page.title}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
 }
 
 function selectedCourse() {
@@ -2634,6 +2686,12 @@ document.querySelector("#menuButton").addEventListener("click", () => {
 
 document.querySelector("#zoomIn")?.addEventListener("click", () => changeZoom(0.05));
 document.querySelector("#zoomOut")?.addEventListener("click", () => changeZoom(-0.05));
+window.addEventListener("popstate", () => {
+  const page = pageFromPath() || "calendar";
+  state.page = page;
+  localStorage.setItem("ta.page", page);
+  render();
+});
 
 function currentStopwatchElapsed() {
   return state.stopwatchRunning ? Date.now() - state.stopwatchStartedAt + state.stopwatchBase : state.stopwatchElapsed;
