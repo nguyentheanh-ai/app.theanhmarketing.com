@@ -1,6 +1,8 @@
 const pages = [
   { id: "dashboard", label: "Analytics", title: "Dashboard tổng quan", icon: "monitoring" },
   { id: "notes", label: "Notes", title: "Ghi chu", icon: "sticky_note_2" },
+  { id: "documents", label: "Tài liệu", title: "Tài liệu", icon: "folder_copy" },
+  { id: "ideas", label: "Idea", title: "Idea", icon: "lightbulb" },
   { id: "content", label: "Plan Content", title: "Kế hoạch nội dung", icon: "edit_calendar" },
   { id: "calendar", label: "Calendar", title: "Lịch triển khai", icon: "calendar_month" },
   { id: "clock", label: "Clock", title: "Dong ho", icon: "schedule" },
@@ -23,6 +25,9 @@ const state = {
   search: "",
   taskFilter: "today",
   promptFilter: "all",
+  ideaFormOpen: false,
+  documentPanelOpen: false,
+  documentFocusMode: false,
   zoom: Number(localStorage.getItem("ta.zoom") || 1.08),
   countdownTotal: Number(localStorage.getItem("ta.countdownTotal") || 25 * 60),
   countdownRemaining: Number(localStorage.getItem("ta.countdownRemaining") || 25 * 60),
@@ -36,6 +41,7 @@ const state = {
   courseFocus: false,
   courseReadMode: false,
   selectedNoteId: localStorage.getItem("ta.selectedNoteId") || "",
+  selectedDocumentId: localStorage.getItem("ta.selectedDocumentId") || "",
   authUser: null,
   authReady: false,
   tasks: readStore("ta.tasks", seedTasks()),
@@ -43,6 +49,8 @@ const state = {
   alarms: readStore("ta.alarms", []),
   courses: normalizeCourses(readStore("ta.courses", seedCourses())),
   notes: readStore("ta.notes", seedNotes()),
+  documents: readStore("ta.documents", seedDocuments()),
+  ideas: readStore("ta.ideas", seedIdeas()),
   contentPlans: readStore("ta.contentPlans", seedContentPlans()),
 };
 
@@ -64,6 +72,7 @@ let remoteSaveTimer = null;
 let remoteReady = false;
 let remoteLoading = false;
 let remoteErrorShown = false;
+let documentSelectionRange = null;
 
 function seedTasks() {
   return [
@@ -173,6 +182,43 @@ function seedContentPlans() {
   ];
 }
 
+function seedDocuments() {
+  return [
+    {
+      id: crypto.randomUUID(),
+      title: "Giáo trình AI Growth System",
+      type: "Giao trinh",
+      color: "blue",
+      summary: "Khung Attract, Grow, Scale, CRM/Data để lưu tài liệu AI tạo ra và mở đọc ngay trong app.",
+      sourceUrl: "",
+      content: "<h2>AI Growth System</h2><p>Lưu giáo trình, checklist, SOP hoặc tài liệu AI đã xuất sang app ở đây.</p><ul><li>Attract: kênh thu hút khách hàng</li><li>Grow: chuyển đổi và nuôi dưỡng</li><li>Scale: mở rộng vận hành</li><li>CRM/Data: dữ liệu và chăm sóc lại</li></ul>",
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: crypto.randomUUID(),
+      title: "Bảng theo dõi tài liệu",
+      type: "Sheet",
+      color: "green",
+      summary: "Có thể lưu link Google Sheet, CSV hoặc bảng dữ liệu để mở lại nhanh.",
+      sourceUrl: "https://docs.google.com/spreadsheets/",
+      content: "<p>Dán link sheet vào ô nguồn, hoặc ghi chú cấu trúc bảng cần dùng ở đây.</p>",
+      updatedAt: new Date().toISOString(),
+    },
+  ];
+}
+
+function seedIdeas() {
+  return [
+    {
+      id: crypto.randomUUID(),
+      title: "Swipe file landing page AI",
+      url: "https://app.theanhmarketing.com/",
+      note: "Lưu các link tham khảo, tiêu đề và thumbnail nhỏ để dùng lại khi brainstorm.",
+      createdAt: new Date().toISOString(),
+    },
+  ];
+}
+
 function readStore(key, fallback) {
   try {
     return JSON.parse(localStorage.getItem(key)) || fallback;
@@ -203,8 +249,11 @@ function collectRemoteState() {
     alarms: state.alarms,
     courses: state.courses,
     notes: state.notes,
+    documents: state.documents,
+    ideas: state.ideas,
     contentPlans: state.contentPlans,
     selectedCourseId: state.selectedCourseId,
+    selectedDocumentId: state.selectedDocumentId,
   };
 }
 
@@ -216,16 +265,23 @@ function applyRemoteState(payload) {
   if (Array.isArray(payload.alarms)) state.alarms = payload.alarms;
   if (Array.isArray(payload.courses)) state.courses = normalizeCourses(payload.courses);
   if (Array.isArray(payload.notes)) state.notes = payload.notes;
+  if (Array.isArray(payload.documents)) state.documents = payload.documents;
+  if (Array.isArray(payload.ideas)) state.ideas = payload.ideas;
   if (Array.isArray(payload.contentPlans)) state.contentPlans = payload.contentPlans;
   if (typeof payload.selectedCourseId === "string") state.selectedCourseId = payload.selectedCourseId;
+  if (typeof payload.selectedDocumentId === "string") state.selectedDocumentId = payload.selectedDocumentId;
   if (!state.selectedCourseId && state.courses[0]) state.selectedCourseId = state.courses[0].id;
+  if (!state.selectedDocumentId && state.documents[0]) state.selectedDocumentId = state.documents[0].id;
   localStorage.setItem("ta.tasks", JSON.stringify(state.tasks));
   localStorage.setItem("ta.prompts", JSON.stringify(state.prompts));
   localStorage.setItem("ta.alarms", JSON.stringify(state.alarms));
   localStorage.setItem("ta.courses", JSON.stringify(state.courses));
   localStorage.setItem("ta.notes", JSON.stringify(state.notes));
+  localStorage.setItem("ta.documents", JSON.stringify(state.documents));
+  localStorage.setItem("ta.ideas", JSON.stringify(state.ideas));
   localStorage.setItem("ta.contentPlans", JSON.stringify(state.contentPlans));
   localStorage.setItem("ta.selectedCourseId", state.selectedCourseId);
+  localStorage.setItem("ta.selectedDocumentId", state.selectedDocumentId);
   remoteLoading = false;
   return true;
 }
@@ -279,7 +335,6 @@ async function loadRemoteState() {
   remoteReady = true;
   if (data?.payload && applyRemoteState(data.payload)) {
     render();
-    showToast("Da dong bo du lieu tu Supabase");
     return;
   }
   saveRemoteState();
@@ -403,6 +458,8 @@ function writeAll() {
   writeStore("ta.alarms", state.alarms);
   writeStore("ta.courses", state.courses);
   writeStore("ta.notes", state.notes);
+  writeStore("ta.documents", state.documents);
+  writeStore("ta.ideas", state.ideas);
   writeStore("ta.contentPlans", state.contentPlans);
 }
 
@@ -490,6 +547,7 @@ function renderNav() {
 
 function render() {
   document.body.classList.toggle("course-focus", state.page === "courses" && state.courseFocus);
+  document.body.classList.toggle("document-focus", state.page === "documents" && state.documentFocusMode);
   renderNav();
   if (supabaseClient && state.authReady && !state.authUser) {
     pageTitle.textContent = "Đăng nhập";
@@ -503,6 +561,8 @@ function render() {
   searchInput.placeholder = {
     dashboard: "Tìm số liệu...",
     notes: "Tìm ghi chú...",
+    documents: "Tìm tài liệu...",
+    ideas: "Tìm idea...",
     content: "Tìm kế hoạch content...",
     calendar: "Tìm lịch...",
     clock: "Tim bao thuc...",
@@ -513,6 +573,8 @@ function render() {
   app.innerHTML = {
     dashboard: renderDashboard,
     notes: renderNotes,
+    documents: renderDocuments,
+    ideas: renderIdeas,
     content: renderContentPlan,
     calendar: renderCalendar,
     clock: renderClock,
@@ -591,50 +653,110 @@ function flattenNodes(node) {
 
 function courseStats() {
   const pinnedNotes = state.notes.filter((note) => note.pinned).length;
-  return { notes: state.notes.length, pinnedNotes, prompts: state.prompts.length, plans: state.contentPlans.length };
+  return {
+    notes: state.notes.length,
+    pinnedNotes,
+    documents: state.documents.length,
+    ideas: state.ideas.length,
+    prompts: state.prompts.length,
+    tasks: state.tasks.length,
+    plans: state.contentPlans.length,
+  };
+}
+
+function countBy(items, getKey) {
+  return items.reduce((groups, item) => {
+    const key = getKey(item) || "Khác";
+    groups[key] = (groups[key] || 0) + 1;
+    return groups;
+  }, {});
+}
+
+function ideaCategory(idea) {
+  const text = `${idea.title || ""} ${idea.url || ""} ${idea.note || ""}`.toLowerCase();
+  if (/(facebook|fb|meta)/.test(text)) return "Facebook";
+  if (/(tiktok|tik tok)/.test(text)) return "TikTok";
+  if (/(ads|quảng cáo|quang cao|campaign)/.test(text)) return "Quảng cáo";
+  if (/(landing|page|website|web)/.test(text)) return "Landing";
+  if (/(email|zalo|crm)/.test(text)) return "CRM";
+  if (/(content|post|reel|video)/.test(text)) return "Content";
+  return "Khác";
+}
+
+function percent(part, total) {
+  return Math.round((part / Math.max(total, 1)) * 100);
+}
+
+function ratioRows(groups, total) {
+  const entries = Object.entries(groups).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return `<div class="ratio-empty">Chưa có dữ liệu</div>`;
+  return entries.map(([label, value]) => {
+    const width = percent(value, total);
+    return `
+      <div class="ratio-row">
+        <div class="ratio-row__text">
+          <span>${escapeHtml(label)}</span>
+          <strong>${value} · ${width}%</strong>
+        </div>
+        <div class="ratio-track"><i style="width:${width}%"></i></div>
+      </div>
+    `;
+  }).join("");
+}
+
+function reportCard(iconName, title, total, groups, actionPage) {
+  return `
+    <article class="card pad report-card">
+      <div class="report-card__head">
+        <div>
+          <span>${icon(iconName)}</span>
+          <h3>${title}</h3>
+        </div>
+        <button class="icon-button" type="button" data-page="${actionPage}" aria-label="Mở ${title}">${icon("open_in_new")}</button>
+      </div>
+      <strong class="report-total">${total}</strong>
+      <p class="muted">Tổng số mục đang lưu</p>
+      <div class="ratio-list">${ratioRows(groups, total)}</div>
+    </article>
+  `;
 }
 
 function renderDashboard() {
   const done = state.tasks.filter((task) => task.done).length;
   const completion = Math.round((done / Math.max(state.tasks.length, 1)) * 100);
   const stats = courseStats();
-  const revenue = [240, 310, 420, 390, 520, 610, 720, 790];
-  const max = Math.max(...revenue);
+  const noteGroups = countBy(state.notes, (note) => note.pinned ? "Đang ghim" : `Màu ${note.color || "white"}`);
+  const documentGroups = countBy(state.documents, (documentItem) => documentItem.type || "Doc");
+  const ideaGroups = countBy(state.ideas, ideaCategory);
+  const promptGroups = countBy(state.prompts, (prompt) => prompt.category || "Khác");
+  const taskGroups = {
+    "Đã xong": done,
+    "Chưa xong": Math.max(state.tasks.length - done, 0),
+    ...countBy(state.tasks, (task) => task.status || "today"),
+  };
   return `
     <section class="page">
       <div class="page-header">
         <div>
           <span class="eyebrow">${icon("bolt")} Live Updates</span>
           <h1 class="headline">Dashboard <span class="highlight">Tổng Quan</span></h1>
-          <p class="subhead">Thống kê ghi chú, prompt, content plan, calendar và task trong một dashboard.</p>
+          <p class="subhead">Báo cáo số lượng và tỷ lệ phân nhóm của Notes, Tài liệu, Idea, Prompt và Task trong một dashboard.</p>
         </div>
         <button class="primary-button" type="button" data-page="notes">${icon("add")} Thêm ghi chú</button>
       </div>
       <div class="grid metrics">
         ${metric("sticky_note_2", "Ghi chú", stats.notes, `${stats.pinnedNotes} ghim`, "pill")}
-        ${metric("edit_calendar", "Plan Content", stats.plans, "đang lên lịch", "pill")}
+        ${metric("folder_copy", "Tài liệu", stats.documents, `${Object.keys(documentGroups).length} loại`, "pill")}
+        ${metric("lightbulb", "Idea", stats.ideas, `${Object.keys(ideaGroups).length} nhóm`, "pill")}
         ${metric("terminal", "Prompt AI", stats.prompts, `${state.prompts.filter((item) => item.favorite).length} favorite`, "pill")}
         ${metric("speed", "Hoàn thành công việc", `${completion}%`, `${done}/${state.tasks.length}`, "pill")}
       </div>
-      <div class="grid two-col">
-        <article class="card pad">
-          <div class="row-between">
-            <div>
-              <h3>Xu hướng doanh thu</h3>
-              <p class="muted">So sánh hiệu suất 8 kỳ gần nhất.</p>
-            </div>
-            <span class="pill">2026</span>
-          </div>
-          <div class="chart">${revenue.map((item) => `<div class="bar" style="height:${(item / max) * 100}%"><span>${item}M</span></div>`).join("")}</div>
-        </article>
-        <aside class="card pad">
-          <h3>Hoạt động gần đây</h3>
-          <div class="list">
-            ${activity("sticky_note_2", `${stats.notes} ghi chú đang lưu`, "Ghi nhanh ý tưởng, checklist và nhắc việc dạng sticky notes.")}
-            ${activity("edit_calendar", `${state.contentPlans.length} kế hoạch content`, "Plan Content được đưa vào Calendar theo ngày.")}
-            ${activity("campaign", "Ads Tool đã chuẩn hóa tên", "Các phần trong tên ads dùng dấu gạch dưới.")}
-          </div>
-        </aside>
+      <div class="dashboard-reports">
+        ${reportCard("sticky_note_2", "Notes", stats.notes, noteGroups, "notes")}
+        ${reportCard("folder_copy", "Tài liệu", stats.documents, documentGroups, "documents")}
+        ${reportCard("lightbulb", "Idea", stats.ideas, ideaGroups, "ideas")}
+        ${reportCard("terminal", "Prompt", stats.prompts, promptGroups, "prompts")}
+        ${reportCard("checklist", "Task", stats.tasks, taskGroups, "tasks")}
       </div>
     </section>
   `;
@@ -650,6 +772,10 @@ function activity(iconName, title, body) {
 
 function selectedCourse() {
   return state.courses.find((course) => course.id === state.selectedCourseId) || state.courses[0] || null;
+}
+
+function selectedDocument() {
+  return state.documents.find((documentItem) => documentItem.id === state.selectedDocumentId) || state.documents[0] || null;
 }
 
 function renderNotes() {
@@ -687,6 +813,205 @@ function noteCard(note) {
       <textarea class="note-body-input" data-note-body="${note.id}" placeholder="Viết ghi chú...">${escapeHtml(note.body)}</textarea>
     </article>
   `;
+}
+
+function documentTypeOptions(activeType = "Doc") {
+  return ["Doc", "Sheet", "PDF", "Link", "Giao trinh"].map((type) => `<option value="${type}" ${type === activeType ? "selected" : ""}>${type}</option>`).join("");
+}
+
+function documentColorOptions(activeColor = "blue") {
+  return ["blue", "green", "pink", "yellow", "white"].map((color) => `<option value="${color}" ${color === activeColor ? "selected" : ""}>${color}</option>`).join("");
+}
+
+function documentTocItems(content = "") {
+  const container = document.createElement("div");
+  container.innerHTML = content;
+  const headings = [...container.querySelectorAll("h1, h2, h3")].map((heading, index) => ({
+    index,
+    level: heading.tagName.toLowerCase(),
+    title: heading.textContent.trim(),
+  })).filter((heading) => heading.title);
+  if (headings.length) return headings;
+  return [{ index: 0, level: "p", title: "Nội dung chính" }];
+}
+
+function renderDocumentToc(active) {
+  const items = documentTocItems(active.content || "");
+  return `
+    <aside class="document-toc">
+      <span>Mục lục</span>
+      ${items.map((item) => `
+        <button class="toc-${item.level}" type="button" data-document-heading="${item.index}">
+          ${escapeHtml(item.title)}
+        </button>
+      `).join("")}
+    </aside>
+  `;
+}
+
+function renderDocumentFocus(active) {
+  return `
+    <section class="document-focus-page">
+      <header class="document-focus-header">
+        <button class="secondary-button" type="button" data-exit-document-focus>${icon("arrow_back")} Quay lại kho</button>
+        <div>
+          <span class="eyebrow">${icon("folder_copy")} ${escapeHtml(active.type || "Doc")}</span>
+          <h1>${escapeHtml(active.title || "Tài liệu chưa đặt tên")}</h1>
+        </div>
+        <button class="icon-button danger-button" type="button" data-delete-document="${active.id}" aria-label="Xóa tài liệu">${icon("delete")}</button>
+      </header>
+      <div class="document-focus-layout">
+        ${renderDocumentToc(active)}
+        <article class="document-focus-sheet">
+          ${documentEditorToolbar()}
+          <div class="document-free-editor document-focus-editor" contenteditable="true" data-document-content="${active.id}">${active.content || ""}</div>
+          <div class="document-selection-menu" id="documentSelectionMenu" hidden>
+            <button type="button" data-doc-format="bold">${icon("format_bold")} In đậm</button>
+            <button type="button" data-doc-format="italic">${icon("format_italic")} In nghiêng</button>
+            <button type="button" data-doc-format="underline">${icon("format_underlined")} Gạch chân</button>
+            <button type="button" data-doc-block="h2">${icon("title")} Tiêu đề</button>
+            <button type="button" data-doc-block="blockquote">${icon("format_quote")} Trích dẫn</button>
+            <button type="button" data-doc-clear>${icon("format_clear")} Xóa định dạng</button>
+          </div>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+function documentEditorToolbar() {
+  return `
+    <div class="document-editor-toolbar">
+      <button class="icon-button" type="button" data-doc-format="bold" aria-label="In đậm">${icon("format_bold")}</button>
+      <button class="icon-button" type="button" data-doc-format="italic" aria-label="In nghiêng">${icon("format_italic")}</button>
+      <button class="icon-button" type="button" data-doc-format="underline" aria-label="Gạch chân">${icon("format_underlined")}</button>
+      <button class="icon-button" type="button" data-doc-format="insertUnorderedList" aria-label="Danh sách chấm">${icon("format_list_bulleted")}</button>
+      <button class="icon-button" type="button" data-doc-format="insertOrderedList" aria-label="Danh sách số">${icon("format_list_numbered")}</button>
+      <button class="icon-button" type="button" data-doc-block="h2" aria-label="Tiêu đề">${icon("title")}</button>
+      <button class="icon-button" type="button" data-doc-block="blockquote" aria-label="Trích dẫn">${icon("format_quote")}</button>
+      <button class="icon-button" type="button" data-doc-clear aria-label="Xóa định dạng">${icon("format_clear")}</button>
+      <button class="icon-button" type="button" data-doc-link aria-label="Thêm link">${icon("add_link")}</button>
+      <button class="icon-button" type="button" data-doc-image aria-label="Thêm ảnh">${icon("image")}</button>
+    </div>
+  `;
+}
+
+function renderDocuments() {
+  const filtered = state.documents.filter((documentItem) => matchesSearch(documentItem.title, documentItem.type, documentItem.summary, documentItem.content, documentItem.sourceUrl));
+  const active = state.documentPanelOpen ? selectedDocument() : null;
+  if (active && state.documentFocusMode) return renderDocumentFocus(active);
+  return `
+    <section class="page documents-page">
+      <div class="page-header">
+        <div>
+          <span class="eyebrow">${icon("folder_copy")} Tài liệu</span>
+          <h1 class="headline">Kho tài liệu</h1>
+          <p class="subhead">Lưu giáo trình, doc, sheet, PDF, link và nội dung AI xuất sang app để bấm vào là đọc ngay.</p>
+        </div>
+        <button class="primary-button" id="newDocumentButton" type="button">${icon("add")} Thêm tài liệu</button>
+      </div>
+      <div class="documents-layout ${active ? "has-active-document" : ""}">
+        <aside class="document-list">
+          ${filtered.length ? filtered.map((documentItem) => `
+            <button class="document-module document-color-${documentItem.color || "blue"} ${active?.id === documentItem.id ? "is-active" : ""}" type="button" data-open-document="${documentItem.id}">
+              <span>${escapeHtml(documentItem.type || "Doc")}</span>
+              <strong>${escapeHtml(documentItem.title || "Tài liệu chưa đặt tên")}</strong>
+              <small>${escapeHtml(documentItem.summary || documentItem.sourceUrl || "Bấm để mở tài liệu")}</small>
+            </button>
+          `).join("") : `<div class="empty compact-empty">Chưa có tài liệu phù hợp.</div>`}
+        </aside>
+        ${active ? `
+          <article class="document-reader">
+            <div class="document-reader-actions">
+              <select data-document-type="${active.id}" aria-label="Loại tài liệu">${documentTypeOptions(active.type)}</select>
+              <select data-document-color="${active.id}" aria-label="Màu tài liệu">${documentColorOptions(active.color)}</select>
+              <button class="secondary-button" type="button" data-copy-document="${active.id}">${icon("content_copy")} Copy</button>
+              ${active.sourceUrl ? `<button class="secondary-button" type="button" data-open-document-source="${active.id}">${icon("open_in_new")} Mở nguồn</button>` : ""}
+              <button class="icon-button" type="button" data-close-document aria-label="Đóng tài liệu">${icon("close")}</button>
+              <button class="icon-button danger-button" type="button" data-delete-document="${active.id}" aria-label="Xóa tài liệu">${icon("delete")}</button>
+            </div>
+            <div class="document-open-layout">
+              ${renderDocumentToc(active)}
+              <div class="document-edit-pane">
+                <input class="doc-title-input" data-document-title="${active.id}" value="${escapeHtml(active.title)}" placeholder="Tên tài liệu" />
+                <textarea class="doc-desc-input compact-desc" data-document-summary="${active.id}" placeholder="Mô tả ngắn...">${escapeHtml(active.summary || "")}</textarea>
+                <input class="document-source-input" data-document-source="${active.id}" value="${escapeHtml(active.sourceUrl || "")}" placeholder="Dán link Doc, Sheet, PDF hoặc nguồn tham khảo..." />
+                ${documentEditorToolbar()}
+                <div class="document-free-editor" contenteditable="true" data-document-content="${active.id}" data-enter-document-focus>${active.content || ""}</div>
+                <div class="document-selection-menu" id="documentSelectionMenu" hidden>
+                  <button type="button" data-doc-format="bold">${icon("format_bold")} In đậm</button>
+                  <button type="button" data-doc-format="italic">${icon("format_italic")} In nghiêng</button>
+                  <button type="button" data-doc-format="underline">${icon("format_underlined")} Gạch chân</button>
+                  <button type="button" data-doc-block="h2">${icon("title")} Tiêu đề</button>
+                  <button type="button" data-doc-block="blockquote">${icon("format_quote")} Trích dẫn</button>
+                  <button type="button" data-doc-clear>${icon("format_clear")} Xóa định dạng</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        ` : ""}
+      </div>
+    </section>
+  `;
+}
+
+function renderIdeas() {
+  const filtered = state.ideas.filter((idea) => matchesSearch(idea.title, idea.url, idea.note));
+  return `
+    <section class="page ideas-page">
+      <div class="page-header">
+        <div>
+          <span class="eyebrow">${icon("lightbulb")} Idea</span>
+          <h1 class="headline">Kho idea và link</h1>
+          <p class="subhead">Lưu tiêu đề, link và thumbnail tự lấy từ website để gom tư liệu tham khảo cho content, offer và funnel.</p>
+        </div>
+        <button class="primary-button" id="newIdeaButton" type="button">${icon(state.ideaFormOpen ? "close" : "add")} ${state.ideaFormOpen ? "Đóng" : "Thêm idea"}</button>
+      </div>
+      ${state.ideaFormOpen ? `<form class="idea-form card pad" id="ideaForm">
+        <div class="field">
+          <label for="ideaTitle">Tiêu đề</label>
+          <input id="ideaTitle" type="text" placeholder="VD: Mẫu landing page khóa học AI" required />
+        </div>
+        <div class="field">
+          <label for="ideaUrl">Link</label>
+          <input id="ideaUrl" type="url" placeholder="https://..." required />
+        </div>
+        <div class="field">
+          <label for="ideaNote">Ghi chú</label>
+          <textarea id="ideaNote" placeholder="Ghi angle, insight, lý do cần lưu..."></textarea>
+        </div>
+        <button class="primary-button" type="submit">${icon("add")} Lưu idea</button>
+      </form>` : ""}
+      <div class="idea-grid">
+        ${filtered.length ? filtered.map((idea) => `
+          <article class="idea-card">
+            <div class="idea-card-actions">
+              <button class="icon-button" type="button" data-copy-idea="${idea.id}" aria-label="Copy link">${icon("content_copy")}</button>
+              <button class="icon-button danger-button" type="button" data-delete-idea="${idea.id}" aria-label="Xóa idea">${icon("delete")}</button>
+            </div>
+            <div class="idea-thumbnail">
+              ${ideaThumbnailUrl(idea) ? `<img src="${escapeHtml(ideaThumbnailUrl(idea))}" alt="" loading="lazy" />` : icon("link")}
+            </div>
+            <div class="idea-content">
+              <h3>${escapeHtml(idea.title)}</h3>
+              <a href="${escapeHtml(idea.url)}" target="_blank" rel="noreferrer">${escapeHtml(idea.url)}</a>
+              <p>${escapeHtml(idea.note || "Chưa có ghi chú.")}</p>
+            </div>
+          </article>
+        `).join("") : `<div class="empty">Chưa có idea phù hợp.</div>`}
+      </div>
+    </section>
+  `;
+}
+
+function ideaThumbnailUrl(idea) {
+  if (idea?.thumbnail) return idea.thumbnail;
+  try {
+    const hostname = new URL(idea.url).hostname;
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=64`;
+  } catch {
+    return "";
+  }
 }
 
 function renderCourses() {
@@ -908,6 +1233,68 @@ function hideSelectionMenu() {
   const menu = document.querySelector("#selectionMenu");
   if (menu) menu.hidden = true;
   state.pendingSelectionText = "";
+}
+
+function saveDocumentSelection(editor) {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || !selection.anchorNode || !selection.focusNode) return false;
+  if (!editor.contains(selection.anchorNode) || !editor.contains(selection.focusNode)) return false;
+  documentSelectionRange = selection.getRangeAt(0).cloneRange();
+  return !selection.toString().trim() || true;
+}
+
+function restoreDocumentSelection() {
+  if (!documentSelectionRange) return;
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(documentSelectionRange);
+}
+
+function showDocumentSelectionMenu(editor, event) {
+  event.preventDefault();
+  const menu = document.querySelector("#documentSelectionMenu");
+  if (!menu) return;
+  const selection = window.getSelection();
+  const text = selectedTextInEditor(editor);
+  if (!text || !selection?.rangeCount) {
+    menu.hidden = true;
+    documentSelectionRange = null;
+    return;
+  }
+  documentSelectionRange = selection.getRangeAt(0).cloneRange();
+  const rect = selection.getRangeAt(0).getBoundingClientRect();
+  const left = Math.min(Math.max(rect.left, 8), window.innerWidth - 190);
+  const top = Math.min(Math.max(rect.bottom + 8, 8), window.innerHeight - 220);
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  menu.hidden = false;
+}
+
+function hideDocumentSelectionMenu() {
+  const menu = document.querySelector("#documentSelectionMenu");
+  if (menu) menu.hidden = true;
+}
+
+function persistDocumentEditor(editor) {
+  const documentItem = state.documents.find((item) => item.id === editor?.dataset.documentContent);
+  if (!documentItem || !editor) return;
+  documentItem.content = editor.innerHTML;
+  documentItem.updatedAt = new Date().toISOString();
+  writeStore("ta.documents", state.documents);
+}
+
+function runDocumentCommand(command, value = null) {
+  const editor = document.querySelector("[data-document-content]");
+  if (!editor) return;
+  editor.focus();
+  restoreDocumentSelection();
+  document.execCommand(command, false, value);
+  persistDocumentEditor(editor);
+  saveDocumentSelection(editor);
+}
+
+function runDocumentBlock(tagName) {
+  runDocumentCommand("formatBlock", tagName);
 }
 
 function syncTocWithEditor(course, editor) {
@@ -1452,6 +1839,170 @@ function bindViewEvents() {
     });
   });
 
+  document.querySelector("#newDocumentButton")?.addEventListener("click", () => {
+    const documentItem = {
+      id: crypto.randomUUID(),
+      title: "Tài liệu mới",
+      type: "Doc",
+      color: "blue",
+      summary: "",
+      sourceUrl: "",
+      content: "<p>Bắt đầu viết hoặc dán nội dung tài liệu ở đây.</p>",
+      updatedAt: new Date().toISOString(),
+    };
+    state.documents.unshift(documentItem);
+    state.selectedDocumentId = documentItem.id;
+    state.documentPanelOpen = true;
+    state.documentFocusMode = false;
+    localStorage.setItem("ta.selectedDocumentId", documentItem.id);
+    writeStore("ta.documents", state.documents);
+    render();
+  });
+  document.querySelectorAll("[data-open-document]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedDocumentId = button.dataset.openDocument;
+      state.documentPanelOpen = true;
+      state.documentFocusMode = false;
+      localStorage.setItem("ta.selectedDocumentId", state.selectedDocumentId);
+      scheduleRemoteSave();
+      render();
+    });
+  });
+  document.querySelectorAll("[data-document-title], [data-document-summary], [data-document-source], [data-document-type], [data-document-color]").forEach((field) => {
+    field.addEventListener("input", () => {
+      const id = field.dataset.documentTitle || field.dataset.documentSummary || field.dataset.documentSource || field.dataset.documentType || field.dataset.documentColor;
+      const documentItem = state.documents.find((item) => item.id === id);
+      if (!documentItem) return;
+      if (field.dataset.documentTitle) documentItem.title = field.value;
+      if (field.dataset.documentSummary) documentItem.summary = field.value;
+      if (field.dataset.documentSource) documentItem.sourceUrl = field.value;
+      if (field.dataset.documentType) documentItem.type = field.value;
+      if (field.dataset.documentColor) documentItem.color = field.value;
+      documentItem.updatedAt = new Date().toISOString();
+      writeStore("ta.documents", state.documents);
+    });
+  });
+  document.querySelectorAll("[data-document-type], [data-document-color]").forEach((select) => {
+    select.addEventListener("change", () => {
+      const id = select.dataset.documentType || select.dataset.documentColor;
+      const documentItem = state.documents.find((item) => item.id === id);
+      if (!documentItem) return;
+      if (select.dataset.documentType) documentItem.type = select.value;
+      if (select.dataset.documentColor) documentItem.color = select.value;
+      documentItem.updatedAt = new Date().toISOString();
+      writeStore("ta.documents", state.documents);
+      render();
+    });
+  });
+  document.querySelectorAll("[data-document-content]").forEach((editor) => {
+    editor.addEventListener("click", () => {
+      if (!editor.hasAttribute("data-enter-document-focus")) return;
+      state.documentFocusMode = true;
+      render();
+    });
+    editor.addEventListener("input", () => {
+      persistDocumentEditor(editor);
+      hideDocumentSelectionMenu();
+    });
+    editor.addEventListener("mouseup", () => saveDocumentSelection(editor));
+    editor.addEventListener("keyup", () => saveDocumentSelection(editor));
+    editor.addEventListener("contextmenu", (event) => showDocumentSelectionMenu(editor, event));
+    editor.addEventListener("click", () => hideDocumentSelectionMenu());
+  });
+  document.querySelector("#documentSelectionMenu")?.addEventListener("mousedown", (event) => event.preventDefault());
+  document.querySelector("[data-exit-document-focus]")?.addEventListener("click", () => {
+    state.documentFocusMode = false;
+    hideDocumentSelectionMenu();
+    render();
+  });
+  document.querySelector("[data-close-document]")?.addEventListener("click", () => {
+    state.documentPanelOpen = false;
+    state.documentFocusMode = false;
+    hideDocumentSelectionMenu();
+    render();
+  });
+  document.querySelectorAll("[data-document-heading]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const editor = document.querySelector("[data-document-content]");
+      const headings = editor ? [...editor.querySelectorAll("h1, h2, h3")] : [];
+      const target = headings[Number(button.dataset.documentHeading)];
+      (target || editor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+  document.querySelectorAll("[data-doc-format], [data-doc-block], [data-doc-clear], [data-doc-link], [data-doc-image]").forEach((button) => {
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.addEventListener("click", () => {
+      if (button.dataset.docFormat) runDocumentCommand(button.dataset.docFormat);
+      if (button.dataset.docBlock) runDocumentBlock(button.dataset.docBlock);
+      if (button.hasAttribute("data-doc-clear")) runDocumentCommand("removeFormat");
+      if (button.hasAttribute("data-doc-link")) {
+        const url = window.prompt("Dán URL cần chèn");
+        if (url) runDocumentCommand("createLink", url);
+      }
+      if (button.hasAttribute("data-doc-image")) {
+        const url = window.prompt("Dán URL hình ảnh");
+        if (url) runDocumentCommand("insertImage", url);
+      }
+    });
+  });
+  document.querySelectorAll("[data-copy-document]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const documentItem = state.documents.find((item) => item.id === button.dataset.copyDocument);
+      copyText(documentItem?.content?.replace(/<[^>]+>/g, " ") || documentItem?.sourceUrl || "", "Đã copy tài liệu");
+    });
+  });
+  document.querySelectorAll("[data-open-document-source]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const documentItem = state.documents.find((item) => item.id === button.dataset.openDocumentSource);
+      if (documentItem?.sourceUrl) window.open(documentItem.sourceUrl, "_blank", "noopener,noreferrer");
+    });
+  });
+  document.querySelectorAll("[data-delete-document]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.documents = state.documents.filter((item) => item.id !== button.dataset.deleteDocument);
+      state.selectedDocumentId = state.documents[0]?.id || "";
+      state.documentPanelOpen = false;
+      state.documentFocusMode = false;
+      localStorage.setItem("ta.selectedDocumentId", state.selectedDocumentId);
+      writeStore("ta.documents", state.documents);
+      render();
+    });
+  });
+
+  document.querySelector("#newIdeaButton")?.addEventListener("click", () => {
+    state.ideaFormOpen = !state.ideaFormOpen;
+    render();
+  });
+  document.querySelector("#ideaForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const title = document.querySelector("#ideaTitle").value.trim();
+    const url = document.querySelector("#ideaUrl").value.trim();
+    if (!title || !url) return showToast("Nhập tiêu đề và link trước");
+    state.ideas.unshift({
+      id: crypto.randomUUID(),
+      title,
+      url,
+      note: document.querySelector("#ideaNote").value.trim(),
+      createdAt: new Date().toISOString(),
+    });
+    state.ideaFormOpen = false;
+    writeStore("ta.ideas", state.ideas);
+    render();
+  });
+  document.querySelectorAll("[data-copy-idea]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const idea = state.ideas.find((item) => item.id === button.dataset.copyIdea);
+      copyText(idea?.url || "", "Đã copy link idea");
+    });
+  });
+  document.querySelectorAll("[data-delete-idea]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.ideas = state.ideas.filter((item) => item.id !== button.dataset.deleteIdea);
+      writeStore("ta.ideas", state.ideas);
+      render();
+    });
+  });
+
   document.querySelector("#alarmForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     const time = document.querySelector("#alarmTime").value;
@@ -1925,6 +2476,10 @@ function updateClockDom() {
   if (digital) digital.textContent = now.toLocaleTimeString("vi-VN", { hour12: false });
   const date = document.querySelector("#clockDate");
   if (date) date.textContent = now.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+  const sidebarClock = document.querySelector("#sidebarClock");
+  if (sidebarClock) sidebarClock.textContent = now.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const sidebarClockDate = document.querySelector("#sidebarClockDate");
+  if (sidebarClockDate) sidebarClockDate.textContent = now.toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit" });
 
   const countdown = document.querySelector("#countdownDisplay");
   if (countdown) countdown.textContent = formatDuration(state.countdownRemaining);
