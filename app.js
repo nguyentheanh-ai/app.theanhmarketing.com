@@ -31,11 +31,23 @@ let knowledgeDocumentsChanged = false;
 
 function pageFromPath(pathname = window.location.pathname) {
   const normalized = pathname.replace(/\/+$/, "") || "/";
-  return pages.find((page) => page.path === normalized)?.id || "";
+  const exactPage = pages.find((page) => page.path === normalized);
+  if (!exactPage) return "";
+  if (!exactPage.isSpace) return exactPage.id;
+  const space = moduleSpaces.find((item) => item.pageId === exactPage.id);
+  return space?.pages[0] || "";
 }
 
 function routeForPage(pageId) {
   return pages.find((page) => page.id === pageId)?.path || "/";
+}
+
+function canonicalPathForCurrentRoute(pathname = window.location.pathname) {
+  const normalized = pathname.replace(/\/+$/, "") || "/";
+  const exactPage = pages.find((page) => page.path === normalized);
+  if (!exactPage?.isSpace) return "";
+  const space = moduleSpaces.find((item) => item.pageId === exactPage.id);
+  return routeForPage(space?.pages[0]);
 }
 
 function knowledgeSeedDocuments() {
@@ -103,6 +115,10 @@ const zoomValue = document.querySelector("#zoomValue");
 if (!state.selectedCourseId && state.courses[0]) state.selectedCourseId = state.courses[0].id;
 if (!state.selectedNoteId && state.notes[0]) state.selectedNoteId = state.notes[0].id;
 if (!pages.some((page) => page.id === state.page)) state.page = "calendar";
+const canonicalPath = canonicalPathForCurrentRoute();
+if (canonicalPath && window.location.pathname !== canonicalPath) {
+  history.replaceState({ page: state.page }, "", canonicalPath);
+}
 
 const remoteStateTable = "app_state";
 let remoteStateId = "local-default";
@@ -590,7 +606,7 @@ function renderNav() {
     </button>
     ${moduleSpaces.map((space) => `
       <div class="nav-section" data-module-space="${space.id}">
-        <button class="nav-space-link ${space.pageId === state.page ? "is-active" : ""}" type="button" data-page="${space.pageId}">
+        <button class="nav-space-link ${space.pages.includes(state.page) ? "is-active" : ""}" type="button" data-page="${space.pages[0]}">
           ${icon(pageById.get(space.pageId)?.icon || "folder")}
           ${space.label}
         </button>
@@ -631,8 +647,6 @@ function render() {
   pageTitle.textContent = page.title;
   searchInput.placeholder = {
     dashboard: "Tìm số liệu...",
-    "noi-dung": "Tìm trong không gian nội dung...",
-    "van-hanh": "Tìm trong không gian vận hành...",
     notes: "Tìm ghi chú...",
     documents: "Tìm tài liệu...",
     ideas: "Tìm idea...",
@@ -644,8 +658,6 @@ function render() {
     prompts: "Tìm prompt...",
   }[state.page] || "Tìm kiếm...";
   app.innerHTML = {
-    "noi-dung": () => renderModuleSpace("content"),
-    "van-hanh": () => renderModuleSpace("operations"),
     dashboard: renderDashboard,
     notes: renderNotes,
     documents: renderDocuments,
@@ -851,36 +863,6 @@ function metric(iconName, label, value, trend, trendClass) {
 
 function activity(iconName, title, body) {
   return `<div class="list-item">${icon(iconName)}<div><h4>${title}</h4><p>${body}</p></div></div>`;
-}
-
-function renderModuleSpace(spaceId) {
-  const space = moduleSpaces.find((item) => item.id === spaceId);
-  if (!space) return renderCalendar();
-  const pageById = new Map(pages.map((page) => [page.id, page]));
-  return `
-    <section class="page module-space-page">
-      <div class="page-header">
-        <div>
-          <span class="eyebrow">${icon(pageById.get(space.pageId)?.icon || "inventory_2")} Module Space</span>
-          <h1 class="headline">${space.label}</h1>
-          <p class="subhead">Chọn một module để mở khu vực làm việc chuyên sâu.</p>
-        </div>
-      </div>
-      <div class="module-launch-grid">
-        ${space.pages.map((pageId) => {
-          const page = pageById.get(pageId);
-          if (!page) return "";
-          return `
-            <button class="module-launch-card" type="button" data-page="${page.id}">
-              ${icon(page.icon)}
-              <strong>${page.label}</strong>
-              <span>${page.title}</span>
-            </button>
-          `;
-        }).join("")}
-      </div>
-    </section>
-  `;
 }
 
 function selectedCourse() {
