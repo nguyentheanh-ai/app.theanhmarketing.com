@@ -158,7 +158,7 @@ button:active {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
 }
 
 .nav button,
@@ -179,6 +179,25 @@ button:active {
   letter-spacing: 0.02em;
   text-align: left;
   transition: background 200ms ease, color 200ms ease, box-shadow 200ms ease;
+}
+
+.nav-section {
+  display: grid;
+  gap: 4px;
+}
+
+.nav-section > span {
+  padding: 10px 12px 4px;
+  color: var(--subtle);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.home-page-link {
+  margin-bottom: 2px;
 }
 
 .nav button:hover,

@@ -16,6 +16,17 @@ test("documents and ideas are first-class app pages", () => {
   assert.match(app, /renderIdeas/);
 });
 
+test("navigation is organized into module spaces with calendar as home", () => {
+  assert.match(app, /moduleSpaces/);
+  assert.match(app, /Không gian nội dung/);
+  assert.match(app, /Không gian vận hành/);
+  assert.match(app, /id:\s*"calendar",\s*label:\s*"Home"/);
+  assert.match(app, /home-page-link/);
+  assert.match(app, /nav-section/);
+  assert.match(styles, /\.home-page-link/);
+  assert.match(styles, /\.nav-section/);
+});
+
 test("document modules open inline and support rich editing", () => {
   assert.match(app, /data-open-document/);
   assert.match(app, /data-document-content/);

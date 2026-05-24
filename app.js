@@ -1,14 +1,19 @@
 const pages = [
-  { id: "dashboard", label: "Analytics", title: "Dashboard tổng quan", icon: "monitoring" },
-  { id: "notes", label: "Notes", title: "Ghi chu", icon: "sticky_note_2" },
-  { id: "documents", label: "Tài liệu", title: "Tài liệu", icon: "folder_copy" },
-  { id: "ideas", label: "Idea", title: "Idea", icon: "lightbulb" },
-  { id: "content", label: "Plan Content", title: "Kế hoạch nội dung", icon: "edit_calendar" },
-  { id: "calendar", label: "Calendar", title: "Lịch triển khai", icon: "calendar_month" },
-  { id: "clock", label: "Clock", title: "Dong ho", icon: "schedule" },
-  { id: "ads", label: "Ads Tool", title: "Công cụ tạo tên Ads", icon: "campaign" },
-  { id: "tasks", label: "Tasks", title: "Quản lý công việc", icon: "checklist" },
-  { id: "prompts", label: "Prompts", title: "Thư viện Prompt AI", icon: "terminal" },
+  { id: "calendar", label: "Home", title: "Calendar", icon: "home", space: "home" },
+  { id: "documents", label: "Tài liệu", title: "Tài liệu", icon: "folder_copy", space: "content" },
+  { id: "notes", label: "Notes", title: "Ghi chu", icon: "sticky_note_2", space: "content" },
+  { id: "ideas", label: "Idea", title: "Idea", icon: "lightbulb", space: "content" },
+  { id: "prompts", label: "Prompt", title: "Thư viện Prompt AI", icon: "terminal", space: "content" },
+  { id: "content", label: "Plan Content", title: "Kế hoạch nội dung", icon: "edit_calendar", space: "operations" },
+  { id: "clock", label: "Clock", title: "Dong ho", icon: "schedule", space: "operations" },
+  { id: "dashboard", label: "Analytics", title: "Dashboard tổng quan", icon: "monitoring", space: "operations" },
+  { id: "ads", label: "Ads Tool", title: "Công cụ tạo tên Ads", icon: "campaign", space: "operations" },
+  { id: "tasks", label: "Tasks", title: "Quản lý công việc", icon: "checklist", space: "operations" },
+];
+
+const moduleSpaces = [
+  { id: "content", label: "Không gian nội dung", pages: ["documents", "notes", "ideas", "prompts"] },
+  { id: "operations", label: "Không gian vận hành", pages: ["content", "clock", "dashboard", "ads", "tasks"] },
 ];
 
 const levelOrder = ["chapter", "lesson", "section", "item"];
@@ -41,7 +46,7 @@ function mergeKnowledgeDocuments(documents = []) {
 }
 
 const state = {
-  page: localStorage.getItem("ta.page") || "dashboard",
+  page: localStorage.getItem("ta.page") || "calendar",
   search: "",
   taskFilter: "today",
   promptFilter: "all",
@@ -561,14 +566,29 @@ function matchesSearch(...values) {
 }
 
 function renderNav() {
-  nav.innerHTML = pages
-    .map((page) => `
-      <button class="${page.id === state.page ? "is-active" : ""}" type="button" data-page="${page.id}">
-        ${icon(page.icon)}
-        ${page.label}
-      </button>
-    `)
-    .join("") + (state.authUser ? `
+  const homePage = pages.find((page) => page.space === "home");
+  const pageById = new Map(pages.map((page) => [page.id, page]));
+  nav.innerHTML = `
+    <button class="home-page-link ${homePage?.id === state.page ? "is-active" : ""}" type="button" data-page="${homePage?.id || "calendar"}">
+      ${icon(homePage?.icon || "home")}
+      ${homePage?.label || "Home"}
+    </button>
+    ${moduleSpaces.map((space) => `
+      <div class="nav-section" data-module-space="${space.id}">
+        <span>${space.label}</span>
+        ${space.pages.map((pageId) => {
+          const page = pageById.get(pageId);
+          if (!page) return "";
+          return `
+            <button class="${page.id === state.page ? "is-active" : ""}" type="button" data-page="${page.id}">
+              ${icon(page.icon)}
+              ${page.label}
+            </button>
+          `;
+        }).join("")}
+      </div>
+    `).join("")}
+  ` + (state.authUser ? `
       <button type="button" data-logout>
         ${icon("logout")}
         Logout
