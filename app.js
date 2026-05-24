@@ -48,6 +48,8 @@ const state = {
   ideaFormOpen: false,
   documentPanelOpen: false,
   documentFocusMode: false,
+  documentFolderFormOpen: false,
+  documentFolderFilter: localStorage.getItem("ta.documentFolderFilter") || "all",
   zoom: Number(localStorage.getItem("ta.zoom") || 1.08),
   countdownTotal: Number(localStorage.getItem("ta.countdownTotal") || 25 * 60),
   countdownRemaining: Number(localStorage.getItem("ta.countdownRemaining") || 25 * 60),
@@ -69,6 +71,7 @@ const state = {
   alarms: readStore("ta.alarms", []),
   courses: normalizeCourses(readStore("ta.courses", seedCourses())),
   notes: readStore("ta.notes", seedNotes()),
+  documentFolders: readStore("ta.documentFolders", ["Khóa học", "Tài liệu chung"]),
   documents: mergeKnowledgeDocuments(readStore("ta.documents", seedDocuments())),
   ideas: readStore("ta.ideas", seedIdeas()),
   contentPlans: readStore("ta.contentPlans", seedContentPlans()),
@@ -209,6 +212,7 @@ function seedDocuments() {
       title: "Giáo trình AI Growth System",
       type: "Giao trinh",
       color: "blue",
+      folder: "Khóa học",
       summary: "Khung Attract, Grow, Scale, CRM/Data để lưu tài liệu AI tạo ra và mở đọc ngay trong app.",
       sourceUrl: "",
       content: "<h2>AI Growth System</h2><p>Lưu giáo trình, checklist, SOP hoặc tài liệu AI đã xuất sang app ở đây.</p><ul><li>Attract: kênh thu hút khách hàng</li><li>Grow: chuyển đổi và nuôi dưỡng</li><li>Scale: mở rộng vận hành</li><li>CRM/Data: dữ liệu và chăm sóc lại</li></ul>",
@@ -219,6 +223,7 @@ function seedDocuments() {
       title: "Bảng theo dõi tài liệu",
       type: "Sheet",
       color: "green",
+      folder: "Tài liệu chung",
       summary: "Có thể lưu link Google Sheet, CSV hoặc bảng dữ liệu để mở lại nhanh.",
       sourceUrl: "https://docs.google.com/spreadsheets/",
       content: "<p>Dán link sheet vào ô nguồn, hoặc ghi chú cấu trúc bảng cần dùng ở đây.</p>",
@@ -269,6 +274,7 @@ function collectRemoteState() {
     alarms: state.alarms,
     courses: state.courses,
     notes: state.notes,
+    documentFolders: state.documentFolders,
     documents: state.documents,
     ideas: state.ideas,
     contentPlans: state.contentPlans,
@@ -285,6 +291,7 @@ function applyRemoteState(payload) {
   if (Array.isArray(payload.alarms)) state.alarms = payload.alarms;
   if (Array.isArray(payload.courses)) state.courses = normalizeCourses(payload.courses);
   if (Array.isArray(payload.notes)) state.notes = payload.notes;
+  if (Array.isArray(payload.documentFolders)) state.documentFolders = payload.documentFolders;
   if (Array.isArray(payload.documents)) state.documents = mergeKnowledgeDocuments(payload.documents);
   if (Array.isArray(payload.ideas)) state.ideas = payload.ideas;
   if (Array.isArray(payload.contentPlans)) state.contentPlans = payload.contentPlans;
@@ -297,6 +304,7 @@ function applyRemoteState(payload) {
   localStorage.setItem("ta.alarms", JSON.stringify(state.alarms));
   localStorage.setItem("ta.courses", JSON.stringify(state.courses));
   localStorage.setItem("ta.notes", JSON.stringify(state.notes));
+  localStorage.setItem("ta.documentFolders", JSON.stringify(state.documentFolders));
   localStorage.setItem("ta.documents", JSON.stringify(state.documents));
   localStorage.setItem("ta.ideas", JSON.stringify(state.ideas));
   localStorage.setItem("ta.contentPlans", JSON.stringify(state.contentPlans));
@@ -480,6 +488,7 @@ function writeAll() {
   writeStore("ta.alarms", state.alarms);
   writeStore("ta.courses", state.courses);
   writeStore("ta.notes", state.notes);
+  writeStore("ta.documentFolders", state.documentFolders);
   writeStore("ta.documents", state.documents);
   writeStore("ta.ideas", state.ideas);
   writeStore("ta.contentPlans", state.contentPlans);
@@ -568,10 +577,12 @@ function renderNav() {
 }
 
 function render() {
+  const authLocked = Boolean(supabaseClient && state.authReady && !state.authUser);
   document.body.classList.toggle("course-focus", state.page === "courses" && state.courseFocus);
   document.body.classList.toggle("document-focus", state.page === "documents" && state.documentFocusMode);
+  document.body.classList.toggle("auth-focus", authLocked);
   renderNav();
-  if (supabaseClient && state.authReady && !state.authUser) {
+  if (authLocked) {
     pageTitle.textContent = "Đăng nhập";
     searchInput.placeholder = "Đăng nhập để mở dashboard...";
     app.innerHTML = renderAuth();
@@ -613,7 +624,7 @@ function renderAuth() {
   return `
     <section class="page auth-page">
       <form class="card pad auth-card" id="authForm">
-        <span class="eyebrow">${icon("lock")} Supabase Auth</span>
+        <span class="eyebrow">${icon("verified_user")} Bản quyền The Anh Marketing</span>
         <h1 class="headline">Đăng nhập dashboard</h1>
         <p class="subhead">Đăng nhập hoặc tạo tài khoản để lưu Notes, Tasks, Prompts và Plan Content lên Supabase.</p>
         <input id="authMode" type="hidden" value="login" />
@@ -626,8 +637,8 @@ function renderAuth() {
           <input id="authPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="Tối thiểu 6 ký tự" />
         </div>
         <div class="course-form-actions">
-          <button class="primary-button" type="submit" id="authSubmit">${icon("login")} Đăng nhập</button>
-          <button class="secondary-button" type="button" id="toggleAuthMode">${icon("person_add")} Tạo tài khoản</button>
+          <button class="primary-button" type="submit" data-auth-action="login">${icon("login")} Đăng nhập</button>
+          <button class="secondary-button" type="submit" data-auth-action="register">${icon("person_add")} Tạo tài khoản</button>
         </div>
         <button class="secondary-button auth-google" type="button" id="googleLogin">${icon("account_circle")} Đăng nhập bằng Google</button>
       </form>
@@ -638,13 +649,12 @@ function renderAuth() {
 function bindAuthEvents() {
   const form = document.querySelector("#authForm");
   const modeInput = document.querySelector("#authMode");
-  const submit = document.querySelector("#authSubmit");
-  const toggle = document.querySelector("#toggleAuthMode");
-  toggle?.addEventListener("click", () => {
-    const isLogin = modeInput.value === "login";
-    modeInput.value = isLogin ? "register" : "login";
-    submit.innerHTML = `${icon(isLogin ? "person_add" : "login")} ${isLogin ? "Tạo tài khoản" : "Đăng nhập"}`;
-    toggle.innerHTML = `${icon(isLogin ? "login" : "person_add")} ${isLogin ? "Đã có tài khoản" : "Tạo tài khoản"}`;
+  let authAction = "login";
+  document.querySelectorAll("[data-auth-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      authAction = button.dataset.authAction || "login";
+      modeInput.value = authAction;
+    });
   });
   document.querySelector("#googleLogin")?.addEventListener("click", async () => {
     const { error } = await supabaseClient.auth.signInWithOAuth({
@@ -657,15 +667,24 @@ function bindAuthEvents() {
     event.preventDefault();
     const email = document.querySelector("#authEmail").value.trim();
     const password = document.querySelector("#authPassword").value;
-    const mode = modeInput.value;
+    const mode = authAction || modeInput.value;
+    const redirectUrl = window.location.origin + window.location.pathname;
     const result = mode === "register"
-      ? await supabaseClient.auth.signUp({ email, password })
+      ? await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: redirectUrl },
+      })
       : await supabaseClient.auth.signInWithPassword({ email, password });
     if (result.error) {
       showToast(result.error.message);
       return;
     }
-    showToast(mode === "register" ? "Đã tạo tài khoản, hãy kiểm tra email nếu Supabase yêu cầu" : "Đã đăng nhập");
+    if (mode === "register") {
+      showToast(result.data?.session ? "Đã tạo tài khoản và đăng nhập" : "Đã tạo tài khoản, hãy kiểm tra email để xác nhận");
+      return;
+    }
+    showToast("Đã đăng nhập");
   });
 }
 
@@ -845,6 +864,38 @@ function documentColorOptions(activeColor = "blue") {
   return ["blue", "green", "pink", "yellow", "white"].map((color) => `<option value="${color}" ${color === activeColor ? "selected" : ""}>${color}</option>`).join("");
 }
 
+function documentFolderName(documentItem) {
+  return documentItem.folder || (documentItem.type === "Giao trinh" ? "Khóa học" : "Tài liệu chung");
+}
+
+function documentFolders() {
+  return [...new Set([...(state.documentFolders || []), ...state.documents.map(documentFolderName)])].filter(Boolean).sort((a, b) => a.localeCompare(b, "vi"));
+}
+
+function documentFolderOptions(activeFolder = "Tài liệu chung") {
+  return documentFolders().map((folder) => `<option value="${escapeHtml(folder)}" ${folder === activeFolder ? "selected" : ""}>${escapeHtml(folder)}</option>`).join("");
+}
+
+function renderDocumentFolderBar() {
+  const folders = documentFolders();
+  return `
+    <div class="document-folder-bar">
+      <button class="${state.documentFolderFilter === "all" ? "is-active" : ""}" type="button" data-document-folder="all">${icon("dashboard")} Tất cả</button>
+      ${folders.map((folder) => `
+        <button class="${state.documentFolderFilter === folder ? "is-active" : ""}" type="button" data-document-folder="${escapeHtml(folder)}">${icon("folder")} ${escapeHtml(folder)}</button>
+      `).join("")}
+      <button type="button" id="newDocumentFolderButton">${icon("create_new_folder")} Thư mục</button>
+    </div>
+    ${state.documentFolderFormOpen ? `
+      <form class="document-folder-form" id="documentFolderForm">
+        <input id="documentFolderName" type="text" placeholder="Tên thư mục, ví dụ: Khóa học" required />
+        <button class="primary-button" type="submit">${icon("check")} Tạo</button>
+        <button class="secondary-button" type="button" id="cancelDocumentFolder">${icon("close")} Hủy</button>
+      </form>
+    ` : ""}
+  `;
+}
+
 function documentTocItems(content = "") {
   const container = document.createElement("div");
   container.innerHTML = content;
@@ -882,6 +933,14 @@ function renderDocumentFocus(active) {
         </div>
         <button class="icon-button danger-button" type="button" data-delete-document="${active.id}" aria-label="Xóa tài liệu">${icon("delete")}</button>
       </header>
+      <div class="document-focus-meta">
+        <input class="doc-title-input" data-document-title="${active.id}" value="${escapeHtml(active.title)}" placeholder="Tên tài liệu" />
+        <textarea class="doc-desc-input compact-desc" data-document-summary="${active.id}" placeholder="Mô tả ngắn...">${escapeHtml(active.summary || "")}</textarea>
+        <input class="document-source-input" data-document-source="${active.id}" value="${escapeHtml(active.sourceUrl || "")}" placeholder="Dán link Doc, Sheet, PDF hoặc nguồn tham khảo..." />
+        <select data-document-type="${active.id}" aria-label="Loại tài liệu">${documentTypeOptions(active.type)}</select>
+        <select data-document-color="${active.id}" aria-label="Màu tài liệu">${documentColorOptions(active.color)}</select>
+        <select data-document-folder-field="${active.id}" aria-label="Thư mục tài liệu">${documentFolderOptions(documentFolderName(active))}</select>
+      </div>
       <div class="document-focus-layout">
         ${renderDocumentToc(active)}
         <article class="document-focus-sheet">
@@ -914,14 +973,19 @@ function documentEditorToolbar() {
       <button class="icon-button" type="button" data-doc-clear aria-label="Xóa định dạng">${icon("format_clear")}</button>
       <button class="icon-button" type="button" data-doc-link aria-label="Thêm link">${icon("add_link")}</button>
       <button class="icon-button" type="button" data-doc-image aria-label="Thêm ảnh">${icon("image")}</button>
+      <button class="icon-button" type="button" data-doc-table aria-label="Tạo bảng">${icon("table")}</button>
+      <button class="icon-button" type="button" data-doc-mindmap aria-label="Sơ đồ tư duy">${icon("account_tree")}</button>
     </div>
   `;
 }
 
 function renderDocuments() {
-  const filtered = state.documents.filter((documentItem) => matchesSearch(documentItem.title, documentItem.type, documentItem.summary, documentItem.content, documentItem.sourceUrl));
-  const active = state.documentPanelOpen ? selectedDocument() : null;
+  const active = state.documentFocusMode ? selectedDocument() : null;
   if (active && state.documentFocusMode) return renderDocumentFocus(active);
+  const filtered = state.documents.filter((documentItem) => {
+    const folderOk = state.documentFolderFilter === "all" || documentFolderName(documentItem) === state.documentFolderFilter;
+    return folderOk && matchesSearch(documentItem.title, documentItem.type, documentItem.summary, documentItem.content, documentItem.sourceUrl, documentFolderName(documentItem));
+  });
   return `
     <section class="page documents-page">
       <div class="page-header">
@@ -932,46 +996,18 @@ function renderDocuments() {
         </div>
         <button class="primary-button" id="newDocumentButton" type="button">${icon("add")} Thêm tài liệu</button>
       </div>
-      <div class="documents-layout ${active ? "has-active-document" : ""}">
-        <aside class="document-list">
-          ${filtered.length ? filtered.map((documentItem) => `
-            <button class="document-module document-color-${documentItem.color || "blue"} ${active?.id === documentItem.id ? "is-active" : ""}" type="button" data-open-document="${documentItem.id}">
+      ${renderDocumentFolderBar()}
+      <div class="document-board">
+        ${filtered.length ? filtered.map((documentItem) => `
+          <article class="document-module document-color-${documentItem.color || "blue"}" data-open-document="${documentItem.id}">
+            <div class="document-module__top">
               <span>${escapeHtml(documentItem.type || "Doc")}</span>
-              <strong>${escapeHtml(documentItem.title || "Tài liệu chưa đặt tên")}</strong>
-              <small>${escapeHtml(documentItem.summary || documentItem.sourceUrl || "Bấm để mở tài liệu")}</small>
-            </button>
-          `).join("") : `<div class="empty compact-empty">Chưa có tài liệu phù hợp.</div>`}
-        </aside>
-        ${active ? `
-          <article class="document-reader">
-            <div class="document-reader-actions">
-              <select data-document-type="${active.id}" aria-label="Loại tài liệu">${documentTypeOptions(active.type)}</select>
-              <select data-document-color="${active.id}" aria-label="Màu tài liệu">${documentColorOptions(active.color)}</select>
-              <button class="secondary-button" type="button" data-copy-document="${active.id}">${icon("content_copy")} Copy</button>
-              ${active.sourceUrl ? `<button class="secondary-button" type="button" data-open-document-source="${active.id}">${icon("open_in_new")} Mở nguồn</button>` : ""}
-              <button class="icon-button" type="button" data-close-document aria-label="Đóng tài liệu">${icon("close")}</button>
-              <button class="icon-button danger-button" type="button" data-delete-document="${active.id}" aria-label="Xóa tài liệu">${icon("delete")}</button>
+              <small>${escapeHtml(documentFolderName(documentItem))}</small>
             </div>
-            <div class="document-open-layout">
-              ${renderDocumentToc(active)}
-              <div class="document-edit-pane">
-                <input class="doc-title-input" data-document-title="${active.id}" value="${escapeHtml(active.title)}" placeholder="Tên tài liệu" />
-                <textarea class="doc-desc-input compact-desc" data-document-summary="${active.id}" placeholder="Mô tả ngắn...">${escapeHtml(active.summary || "")}</textarea>
-                <input class="document-source-input" data-document-source="${active.id}" value="${escapeHtml(active.sourceUrl || "")}" placeholder="Dán link Doc, Sheet, PDF hoặc nguồn tham khảo..." />
-                ${documentEditorToolbar()}
-                <div class="document-free-editor" contenteditable="true" data-document-content="${active.id}" data-enter-document-focus>${active.content || ""}</div>
-                <div class="document-selection-menu" id="documentSelectionMenu" hidden>
-                  <button type="button" data-doc-format="bold">${icon("format_bold")} In đậm</button>
-                  <button type="button" data-doc-format="italic">${icon("format_italic")} In nghiêng</button>
-                  <button type="button" data-doc-format="underline">${icon("format_underlined")} Gạch chân</button>
-                  <button type="button" data-doc-block="h2">${icon("title")} Tiêu đề</button>
-                  <button type="button" data-doc-block="blockquote">${icon("format_quote")} Trích dẫn</button>
-                  <button type="button" data-doc-clear>${icon("format_clear")} Xóa định dạng</button>
-                </div>
-              </div>
-            </div>
+            <strong>${escapeHtml(documentItem.title || "Tài liệu chưa đặt tên")}</strong>
+            <p>${escapeHtml(documentItem.summary || documentItem.sourceUrl || "Bấm để mở tài liệu toàn trang")}</p>
           </article>
-        ` : ""}
+        `).join("") : `<div class="empty compact-empty">Chưa có tài liệu phù hợp.</div>`}
       </div>
     </section>
   `;
@@ -1297,12 +1333,82 @@ function hideDocumentSelectionMenu() {
   if (menu) menu.hidden = true;
 }
 
+function sanitizeDocumentContent(html = "") {
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  container.querySelectorAll("img").forEach((image) => {
+    const source = image.getAttribute("src") || "";
+    if (source.startsWith("data:") || source.startsWith("blob:") || image.hasAttribute("data-doc-ephemeral-image")) {
+      const placeholder = document.createElement("p");
+      placeholder.className = "document-image-placeholder";
+      placeholder.textContent = "[Ảnh tạm không lưu vào Supabase]";
+      image.replaceWith(placeholder);
+    }
+  });
+  return container.innerHTML;
+}
+
 function persistDocumentEditor(editor) {
   const documentItem = state.documents.find((item) => item.id === editor?.dataset.documentContent);
   if (!documentItem || !editor) return;
-  documentItem.content = editor.innerHTML;
+  documentItem.content = sanitizeDocumentContent(editor.innerHTML);
   documentItem.updatedAt = new Date().toISOString();
   writeStore("ta.documents", state.documents);
+}
+
+function insertDocumentHtml(html) {
+  const editor = document.querySelector("[data-document-content]");
+  if (!editor) return;
+  editor.focus();
+  restoreDocumentSelection();
+  document.execCommand("insertHTML", false, html);
+  persistDocumentEditor(editor);
+  saveDocumentSelection(editor);
+}
+
+function insertDocumentTable() {
+  insertDocumentHtml(`
+    <table class="document-table">
+      <tbody>
+        <tr><th>Cột 1</th><th>Cột 2</th><th>Cột 3</th></tr>
+        <tr><td>Nội dung</td><td>Nội dung</td><td>Nội dung</td></tr>
+        <tr><td>Nội dung</td><td>Nội dung</td><td>Nội dung</td></tr>
+      </tbody>
+    </table>
+  `);
+}
+
+function insertDocumentMindMap() {
+  insertDocumentHtml(`
+    <div class="document-mindmap">
+      <strong>Ý chính</strong>
+      <ol>
+        <li>Bước 1: Xác định mục tiêu</li>
+        <li>Bước 2: Chia nhánh nội dung</li>
+        <li>Bước 3: Gắn hành động tiếp theo</li>
+      </ol>
+    </div>
+  `);
+}
+
+function insertTemporaryImage(dataUrl) {
+  const safeDataUrl = String(dataUrl || "").replace(/"/g, "&quot;");
+  insertDocumentHtml(`<img src="${safeDataUrl}" alt="Ảnh tạm" data-doc-ephemeral-image="true" />`);
+}
+
+function handleDocumentPaste(editor, event) {
+  const imageItem = [...(event.clipboardData?.items || [])].find((item) => item.type.startsWith("image/"));
+  if (!imageItem) return;
+  event.preventDefault();
+  const file = imageItem.getAsFile();
+  if (!file) return;
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    editor.focus();
+    insertTemporaryImage(reader.result);
+    showToast("Đã dán ảnh tạm, ảnh không lưu vào Supabase");
+  });
+  reader.readAsDataURL(file);
 }
 
 function runDocumentCommand(command, value = null) {
@@ -1867,6 +1973,7 @@ function bindViewEvents() {
       title: "Tài liệu mới",
       type: "Doc",
       color: "blue",
+      folder: state.documentFolderFilter === "all" ? "Tài liệu chung" : state.documentFolderFilter,
       summary: "",
       sourceUrl: "",
       content: "<p>Bắt đầu viết hoặc dán nội dung tài liệu ở đây.</p>",
@@ -1875,24 +1982,50 @@ function bindViewEvents() {
     state.documents.unshift(documentItem);
     state.selectedDocumentId = documentItem.id;
     state.documentPanelOpen = true;
-    state.documentFocusMode = false;
+    state.documentFocusMode = true;
     localStorage.setItem("ta.selectedDocumentId", documentItem.id);
     writeStore("ta.documents", state.documents);
     render();
+  });
+  document.querySelector("#newDocumentFolderButton")?.addEventListener("click", () => {
+    state.documentFolderFormOpen = !state.documentFolderFormOpen;
+    render();
+  });
+  document.querySelector("#cancelDocumentFolder")?.addEventListener("click", () => {
+    state.documentFolderFormOpen = false;
+    render();
+  });
+  document.querySelector("#documentFolderForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const name = document.querySelector("#documentFolderName")?.value.trim();
+    if (!name) return;
+    if (!state.documentFolders.includes(name)) state.documentFolders.push(name);
+    state.documentFolderFilter = name;
+    state.documentFolderFormOpen = false;
+    localStorage.setItem("ta.documentFolderFilter", name);
+    writeStore("ta.documentFolders", state.documentFolders);
+    render();
+  });
+  document.querySelectorAll("[data-document-folder]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.documentFolderFilter = button.dataset.documentFolder || "all";
+      localStorage.setItem("ta.documentFolderFilter", state.documentFolderFilter);
+      render();
+    });
   });
   document.querySelectorAll("[data-open-document]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedDocumentId = button.dataset.openDocument;
       state.documentPanelOpen = true;
-      state.documentFocusMode = false;
+      state.documentFocusMode = true;
       localStorage.setItem("ta.selectedDocumentId", state.selectedDocumentId);
       scheduleRemoteSave();
       render();
     });
   });
-  document.querySelectorAll("[data-document-title], [data-document-summary], [data-document-source], [data-document-type], [data-document-color]").forEach((field) => {
+  document.querySelectorAll("[data-document-title], [data-document-summary], [data-document-source], [data-document-type], [data-document-color], [data-document-folder-field]").forEach((field) => {
     field.addEventListener("input", () => {
-      const id = field.dataset.documentTitle || field.dataset.documentSummary || field.dataset.documentSource || field.dataset.documentType || field.dataset.documentColor;
+      const id = field.dataset.documentTitle || field.dataset.documentSummary || field.dataset.documentSource || field.dataset.documentType || field.dataset.documentColor || field.dataset.documentFolderField;
       const documentItem = state.documents.find((item) => item.id === id);
       if (!documentItem) return;
       if (field.dataset.documentTitle) documentItem.title = field.value;
@@ -1900,32 +2033,30 @@ function bindViewEvents() {
       if (field.dataset.documentSource) documentItem.sourceUrl = field.value;
       if (field.dataset.documentType) documentItem.type = field.value;
       if (field.dataset.documentColor) documentItem.color = field.value;
+      if (field.dataset.documentFolderField) documentItem.folder = field.value;
       documentItem.updatedAt = new Date().toISOString();
       writeStore("ta.documents", state.documents);
     });
   });
-  document.querySelectorAll("[data-document-type], [data-document-color]").forEach((select) => {
+  document.querySelectorAll("[data-document-type], [data-document-color], [data-document-folder-field]").forEach((select) => {
     select.addEventListener("change", () => {
-      const id = select.dataset.documentType || select.dataset.documentColor;
+      const id = select.dataset.documentType || select.dataset.documentColor || select.dataset.documentFolderField;
       const documentItem = state.documents.find((item) => item.id === id);
       if (!documentItem) return;
       if (select.dataset.documentType) documentItem.type = select.value;
       if (select.dataset.documentColor) documentItem.color = select.value;
+      if (select.dataset.documentFolderField) documentItem.folder = select.value;
       documentItem.updatedAt = new Date().toISOString();
       writeStore("ta.documents", state.documents);
       render();
     });
   });
   document.querySelectorAll("[data-document-content]").forEach((editor) => {
-    editor.addEventListener("click", () => {
-      if (!editor.hasAttribute("data-enter-document-focus")) return;
-      state.documentFocusMode = true;
-      render();
-    });
     editor.addEventListener("input", () => {
       persistDocumentEditor(editor);
       hideDocumentSelectionMenu();
     });
+    editor.addEventListener("paste", (event) => handleDocumentPaste(editor, event));
     editor.addEventListener("mouseup", () => saveDocumentSelection(editor));
     editor.addEventListener("keyup", () => saveDocumentSelection(editor));
     editor.addEventListener("contextmenu", (event) => showDocumentSelectionMenu(editor, event));
@@ -1951,7 +2082,7 @@ function bindViewEvents() {
       (target || editor)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
-  document.querySelectorAll("[data-doc-format], [data-doc-block], [data-doc-clear], [data-doc-link], [data-doc-image]").forEach((button) => {
+  document.querySelectorAll("[data-doc-format], [data-doc-block], [data-doc-clear], [data-doc-link], [data-doc-image], [data-doc-table], [data-doc-mindmap]").forEach((button) => {
     button.addEventListener("mousedown", (event) => event.preventDefault());
     button.addEventListener("click", () => {
       if (button.dataset.docFormat) runDocumentCommand(button.dataset.docFormat);
@@ -1965,6 +2096,8 @@ function bindViewEvents() {
         const url = window.prompt("Dán URL hình ảnh");
         if (url) runDocumentCommand("insertImage", url);
       }
+      if (button.hasAttribute("data-doc-table")) insertDocumentTable();
+      if (button.hasAttribute("data-doc-mindmap")) insertDocumentMindMap();
     });
   });
   document.querySelectorAll("[data-copy-document]").forEach((button) => {

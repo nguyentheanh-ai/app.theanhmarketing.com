@@ -18,8 +18,6 @@ test("documents and ideas are first-class app pages", () => {
 
 test("document modules open inline and support rich editing", () => {
   assert.match(app, /data-open-document/);
-  assert.match(app, /documentPanelOpen/);
-  assert.match(app, /state\.documentPanelOpen \? selectedDocument\(\) : null/);
   assert.match(app, /data-document-content/);
   assert.match(app, /contenteditable="true"/);
   assert.match(app, /data-document-color/);
@@ -35,6 +33,35 @@ test("document modules open inline and support rich editing", () => {
   assert.match(app, /data-doc-block="h2"/);
   assert.match(app, /data-doc-block="blockquote"/);
   assert.match(app, /showDocumentSelectionMenu/);
+});
+
+test("document dashboard stays as a board with folders", () => {
+  assert.doesNotMatch(app, /has-active-document/);
+  assert.doesNotMatch(app, /document-reader/);
+  assert.match(app, /document-board/);
+  assert.match(app, /document-folder-bar/);
+  assert.match(app, /document-folder-form/);
+  assert.match(app, /newDocumentFolderButton/);
+  assert.match(app, /documentFolderFormOpen/);
+  assert.match(app, /documentFolderForm/);
+  assert.doesNotMatch(app, /prompt\("Tên thư mục tài liệu"/);
+  assert.match(app, /data-document-folder/);
+  assert.match(styles, /\.document-board/);
+  assert.match(styles, /\.document-folder-bar/);
+  assert.match(styles, /\.document-folder-form/);
+});
+
+test("document editor supports tables, mind maps, and pasted images", () => {
+  assert.match(app, /data-doc-table/);
+  assert.match(app, /data-doc-mindmap/);
+  assert.match(app, /insertDocumentTable/);
+  assert.match(app, /insertDocumentMindMap/);
+  assert.match(app, /handleDocumentPaste/);
+  assert.match(app, /sanitizeDocumentContent/);
+  assert.match(app, /data-doc-ephemeral-image/);
+  assert.match(app, /FileReader/);
+  assert.match(styles, /\.document-table/);
+  assert.match(styles, /\.document-mindmap/);
 });
 
 test("idea cards include link thumbnails", () => {
@@ -60,6 +87,21 @@ test("sidebar shows a persistent clock", () => {
   assert.match(styles, /\.sidebar-clock/);
 });
 
+test("auth screen hides app chrome and keeps login card readable", () => {
+  assert.match(app, /auth-focus/);
+  assert.match(app, /Bản quyền The Anh Marketing/);
+  assert.doesNotMatch(app, /Supabase Auth/);
+  assert.match(app, /data-auth-action="login"/);
+  assert.match(app, /data-auth-action="register"/);
+  assert.match(app, /emailRedirectTo/);
+  assert.doesNotMatch(app, /toggleAuthMode/);
+  assert.match(styles, /body\.auth-focus \.sidebar/);
+  assert.match(styles, /body\.auth-focus \.topbar/);
+  assert.match(styles, /body\.auth-focus \.shell/);
+  assert.match(styles, /\.auth-card \.headline/);
+  assert.match(styles, /letter-spacing:\s*0/);
+});
+
 test("dashboard reports counts and ratios for core modules", () => {
   assert.match(app, /function countBy/);
   assert.match(app, /function ideaCategory/);
@@ -77,7 +119,6 @@ test("dashboard reports counts and ratios for core modules", () => {
 test("document content can expand into full-page focus mode", () => {
   assert.match(app, /documentFocusMode/);
   assert.match(app, /document-focus-page/);
-  assert.match(app, /data-enter-document-focus/);
   assert.match(app, /data-exit-document-focus/);
   assert.match(app, /document-focus/);
   assert.match(styles, /body\.document-focus \.sidebar/);
