@@ -43,6 +43,14 @@ const docs = [
     summary: "Bảng thực chiến gồm 38 cách mở đầu TikTok, tâm lý kích hoạt, công thức hook, ví dụ và gợi ý áp dụng.",
     sourcePath: `${sourceRoot}/docs/BANG_TONG_HOP_CACH_MO_DAU_TIKTOK.md`,
   },
+  {
+    id: "knowledge-quy-trinh-dua-du-lieu-len-app",
+    title: "Quy trình đưa dữ liệu quan trọng lên app",
+    type: "SOP",
+    color: "blue",
+    summary: "Quy trình gọn để chuẩn hóa tài liệu quan trọng, đưa vào app, kiểm tra, push và xác nhận production.",
+    sourcePath: `${sourceRoot}/docs/QUY_TRINH_DUA_DU_LIEU_LEN_APP.md`,
+  },
 ];
 
 function readMarkdown(path) {

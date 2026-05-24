@@ -95,5 +95,6 @@ test("AI Master knowledge documents are bundled into the document library", () =
   assert.match(knowledgeSeeds, /Spec landing page - AI Master x10/);
   assert.match(knowledgeSeeds, /Outline quay khóa - AI Master x10 Hiệu Suất/);
   assert.match(knowledgeSeeds, /knowledge-tiktok-38-cach-mo-dau/);
+  assert.match(knowledgeSeeds, /knowledge-quy-trinh-dua-du-lieu-len-app/);
   assert.match(knowledgeSeeds, /document-table/);
 });
