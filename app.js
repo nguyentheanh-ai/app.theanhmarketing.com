@@ -42,6 +42,10 @@ function routeForPage(pageId) {
   return pages.find((page) => page.id === pageId)?.path || "/";
 }
 
+function currentModuleSpace(pageId = state.page) {
+  return moduleSpaces.find((space) => space.pages.includes(pageId)) || null;
+}
+
 function canonicalPathForCurrentRoute(pathname = window.location.pathname) {
   const normalized = pathname.replace(/\/+$/, "") || "/";
   const exactPage = pages.find((page) => page.path === normalized);
@@ -599,30 +603,41 @@ function matchesSearch(...values) {
 function renderNav() {
   const homePage = pages.find((page) => page.space === "home");
   const pageById = new Map(pages.map((page) => [page.id, page]));
-  nav.innerHTML = `
+  const activeSpace = currentModuleSpace();
+  const navBody = activeSpace ? `
+    <button class="home-page-link" type="button" data-page="${homePage?.id || "calendar"}">
+      ${icon("arrow_back")}
+      Home
+    </button>
+    <div class="nav-section nav-section-current" data-module-space="${activeSpace.id}">
+      <span>${activeSpace.label}</span>
+      ${activeSpace.pages.map((pageId) => {
+        const page = pageById.get(pageId);
+        if (!page) return "";
+        return `
+          <button class="${page.id === state.page ? "is-active" : ""}" type="button" data-page="${page.id}">
+            ${icon(page.icon)}
+            ${page.label}
+          </button>
+        `;
+      }).join("")}
+    </div>
+  ` : `
     <button class="home-page-link ${homePage?.id === state.page ? "is-active" : ""}" type="button" data-page="${homePage?.id || "calendar"}">
       ${icon(homePage?.icon || "home")}
       ${homePage?.label || "Home"}
     </button>
-    ${moduleSpaces.map((space) => `
-      <div class="nav-section" data-module-space="${space.id}">
-        <button class="nav-space-link ${space.pages.includes(state.page) ? "is-active" : ""}" type="button" data-page="${space.pages[0]}">
+    <div class="nav-section nav-section-gateway">
+      <span>Không gian làm việc</span>
+      ${moduleSpaces.map((space) => `
+        <button class="nav-space-link" type="button" data-page="${space.pages[0]}">
           ${icon(pageById.get(space.pageId)?.icon || "folder")}
           ${space.label}
         </button>
-        ${space.pages.map((pageId) => {
-          const page = pageById.get(pageId);
-          if (!page) return "";
-          return `
-            <button class="${page.id === state.page ? "is-active" : ""}" type="button" data-page="${page.id}">
-              ${icon(page.icon)}
-              ${page.label}
-            </button>
-          `;
-        }).join("")}
-      </div>
-    `).join("")}
-  ` + (state.authUser ? `
+      `).join("")}
+    </div>
+  `;
+  nav.innerHTML = navBody + (state.authUser ? `
       <button type="button" data-logout>
         ${icon("logout")}
         Logout

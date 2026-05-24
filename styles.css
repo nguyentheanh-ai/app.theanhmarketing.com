@@ -186,6 +186,11 @@ button:active {
   gap: 4px;
 }
 
+.nav-section-current,
+.nav-section-gateway {
+  padding-top: 8px;
+}
+
 .nav-space-link {
   margin-top: 4px;
 }
@@ -194,6 +199,14 @@ button:active {
 .nav-space-link {
   padding: 10px 12px 4px;
   line-height: 1.2;
+}
+
+.nav-section > span {
+  color: var(--subtle);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .nav-space-link {

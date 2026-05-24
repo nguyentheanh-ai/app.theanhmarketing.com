@@ -26,6 +26,7 @@ test("navigation is organized into module spaces with calendar as home", () => {
   assert.match(app, /path:\s*"\/van-hanh"/);
   assert.match(app, /pageFromPath/);
   assert.match(app, /routeForPage/);
+  assert.match(app, /currentModuleSpace/);
   assert.match(app, /canonicalPathForCurrentRoute/);
   assert.match(app, /history\.pushState/);
   assert.match(app, /history\.replaceState/);
@@ -34,11 +35,15 @@ test("navigation is organized into module spaces with calendar as home", () => {
   assert.match(app, /id:\s*"calendar",\s*label:\s*"Home"/);
   assert.match(app, /home-page-link/);
   assert.match(app, /nav-section/);
+  assert.match(app, /nav-section-current/);
+  assert.match(app, /nav-section-gateway/);
   assert.match(app, /pageId:\s*"noi-dung"/);
   assert.match(app, /pageId:\s*"van-hanh"/);
   assert.match(app, /data-page="\$\{space\.pages\[0\]\}"/);
   assert.match(styles, /\.home-page-link/);
   assert.match(styles, /\.nav-section/);
+  assert.match(styles, /\.nav-section-current/);
+  assert.match(styles, /\.nav-section-gateway/);
   assert.doesNotMatch(styles, /\.module-space-page/);
   assert.doesNotMatch(styles, /\.module-launch-grid/);
   assert.match(server, /index\.html/);
