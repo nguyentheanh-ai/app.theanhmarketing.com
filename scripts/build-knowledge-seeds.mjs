@@ -35,6 +35,14 @@ const docs = [
     summary: "Giáo án quay từng bài: mục tiêu, nội dung cần nói, demo, bài tập và đầu ra học viên.",
     sourcePath: `${sourceRoot}/docs/OUTLINE_QUAY_KHOA_AI_MASTER_X10.md`,
   },
+  {
+    id: "knowledge-tiktok-38-cach-mo-dau",
+    title: "Bảng tổng hợp 38 cách mở đầu TikTok",
+    type: "Content",
+    color: "purple",
+    summary: "Bảng thực chiến gồm 38 cách mở đầu TikTok, tâm lý kích hoạt, công thức hook, ví dụ và gợi ý áp dụng.",
+    sourcePath: `${sourceRoot}/docs/BANG_TONG_HOP_CACH_MO_DAU_TIKTOK.md`,
+  },
 ];
 
 function readMarkdown(path) {
@@ -55,6 +63,33 @@ function inlineMarkdown(value = "") {
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
 }
 
+function parseTableCells(line) {
+  return line
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function isTableSeparator(line) {
+  return /^\|?[\s:|-]+\|[\s:|-]+/.test(line);
+}
+
+function renderMarkdownTable(rows) {
+  const [headerLine, separatorLine, ...bodyLines] = rows;
+  const header = parseTableCells(headerLine);
+  const body = isTableSeparator(separatorLine) ? bodyLines : [separatorLine, ...bodyLines];
+  return [
+    '<div class="document-table-wrap"><table class="document-table">',
+    `<thead><tr>${header.map((cell) => `<th>${inlineMarkdown(cell)}</th>`).join("")}</tr></thead>`,
+    `<tbody>${body
+      .filter((line) => !isTableSeparator(line))
+      .map((line) => `<tr>${parseTableCells(line).map((cell) => `<td>${inlineMarkdown(cell)}</td>`).join("")}</tr>`)
+      .join("")}</tbody>`,
+    "</table></div>",
+  ].join("\n");
+}
+
 function markdownToHtml(markdown) {
   const lines = markdown.split(/\r?\n/);
   const html = [];
@@ -67,7 +102,8 @@ function markdownToHtml(markdown) {
     }
   };
 
-  for (const rawLine of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const rawLine = lines[index];
     const line = rawLine.trim();
     if (!line) {
       closeList();
@@ -106,7 +142,12 @@ function markdownToHtml(markdown) {
     }
     if (line.startsWith("|")) {
       closeList();
-      html.push(`<p><code>${escapeHtml(line)}</code></p>`);
+      const tableRows = [line];
+      while (lines[index + 1]?.trim().startsWith("|")) {
+        index += 1;
+        tableRows.push(lines[index].trim());
+      }
+      html.push(renderMarkdownTable(tableRows));
       continue;
     }
     closeList();
